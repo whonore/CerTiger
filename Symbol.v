@@ -37,7 +37,7 @@ Module Symbol <: SYMBOL.
   Fixpoint sym_find (tbl : sym_tbl) name :=
     match tbl with
     | nil => None
-    | (s, n) :: tbl' => if string_dec s name 
+    | (s, n) :: tbl' => if string_dec s name
                             then Some n
                             else sym_find tbl' name
     end.
@@ -61,16 +61,16 @@ Module Symbol <: SYMBOL.
     Context {A : Set}.
 
     Definition table := list (t * A).
-  
+
     Definition empty : table := nil.
 
     Definition enter (tbl : table) sym val := (sym, val) :: tbl.
-  
+
     Fixpoint look (tbl : table) sym :=
       match tbl with
       | nil => None
-      | (sym', val) :: tbl' => if sym_eq sym sym' 
-                                 then Some val 
+      | (sym', val) :: tbl' => if sym_eq sym sym'
+                                 then Some val
                                  else look tbl' sym
       end.
 

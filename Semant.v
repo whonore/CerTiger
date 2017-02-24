@@ -48,7 +48,7 @@ Definition getOpType f :=
 Section TYPE_CHECK.
 
 Definition transOp (lty rty : expty) (f : opType) : @res expty:=
-  if Types.ty_compat (ty lty) (ty rty) 
+  if Types.ty_compat (ty lty) (ty rty)
     then match f with
     | Arith => match (ty lty) with
         | Types.INT => OK (mk_expty Types.INT)
@@ -90,7 +90,7 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
                          OK (mk_expty retty, us)
                      | _ => ERR
                      end
-  | OpExp l f r => do (lty, us') <- transExp ce us l; 
+  | OpExp l f r => do (lty, us') <- transExp ce us l;
                    do (rty, us'') <- transExp ce us' r;
                    do ty <- transOp lty rty (getOpType f);
                    OK (ty, us'')
@@ -173,7 +173,7 @@ End TYPE_CHECK.
 Section TYPE_SPEC.
 
 Inductive wt_op : Types.ty -> Types.ty -> opType -> Types.ty -> Prop :=
-  | wt_arith : 
+  | wt_arith :
       wt_op Types.INT Types.INT Arith Types.INT
   | wt_ineq_int :
       wt_op Types.INT Types.INT Ineq Types.INT
@@ -214,7 +214,7 @@ with wt_fs (te : tenv) (us : Types.upool) : list Symbol.t -> list Types.ty -> Pr
       wt_fs te us (f :: fs) (fty :: ftys).
 
 Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
-  | wt_varexp : forall v ty us', 
+  | wt_varexp : forall v ty us',
       wt_var ce us v ty us' ->
       wt_exp ce us (VarExp v) ty us'
   | wt_nilexp :
@@ -245,7 +245,7 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
   | wt_ifthenexp : forall p t e ty us' us'' us''',
       wt_exp ce us p Types.INT us' ->
       wt_exp ce us t ty us'' ->
-      wt_exp ce us' e ty us''' ->   
+      wt_exp ce us' e ty us''' ->
       wt_exp ce us (IfExp p t (Some e)) ty us'''
   | wt_ifthen : forall p t us' us'',
       wt_exp ce us p Types.INT us' ->
@@ -272,8 +272,8 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
       wt_exp ce us sz Types.INT us' ->
       wt_exp ce us init ty' us'' ->
       wt_exp ce us (ArrayExp aty sz init) (Types.ARRAY ty' u) us''
-with wt_explist (ce : composite_env) (us : Types.upool) : list Absyn.exp -> list Types.ty -> Types.upool -> Prop := 
-  | wt_enil : 
+with wt_explist (ce : composite_env) (us : Types.upool) : list Absyn.exp -> list Types.ty -> Types.upool -> Prop :=
+  | wt_enil :
       wt_explist ce us nil nil us
   | wt_econs : forall e ty es tys us' us'',
       wt_exp ce us e ty us' ->

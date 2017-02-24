@@ -44,9 +44,9 @@ Module Unique <: UNIQUE.
       + rewrite <- e. apply Max.le_max_l.
     - apply IHus in H0.
       destruct (Max.max_dec a (maximum us)); rewrite e.
-      + assert (maximum us <= a). 
+      + assert (maximum us <= a).
         { rewrite <- e. apply Max.le_max_r. }
-        apply le_trans with (m := maximum us); assumption. 
+        apply le_trans with (m := maximum us); assumption.
       + assumption.
   Qed.
 

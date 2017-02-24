@@ -14,7 +14,7 @@ Section RESMONAD.
 
 Definition bind {A B : Type} (f : @res A) (g : A -> @res B) : @res B :=
   match f with
-  | ERR => ERR 
+  | ERR => ERR
   | OK x => g x
   end.
 

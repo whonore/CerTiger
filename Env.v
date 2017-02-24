@@ -27,7 +27,7 @@ Module Env <: ENV.
   | VarEntry : ty -> enventry
   | FunEntry : list ty -> ty -> enventry.
 
-  Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) := 
+  Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
     Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).
 
   Definition tsyms : Symbol.sym_tbl := fold_right Symbol.symbolT Symbol.sym_empty
@@ -39,7 +39,7 @@ Module Env <: ENV.
 
   Definition base_tenv := fold_right (enter tsyms) Symbol.empty
     (("int", Types.INT) :: ("string", Types.STRING) :: nil)%string.
-    
+
   Definition base_venv := fold_right (enter vsyms) Symbol.empty
     (("print", FunEntry (Types.STRING :: nil) Types.UNIT)
      :: ("flush", FunEntry nil Types.UNIT)
