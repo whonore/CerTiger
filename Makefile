@@ -3,19 +3,22 @@ CC=coqc
 all: Semant.vo
 
 Symbol.vo: Symbol.v
-	coqc Symbol.v
+	$(CC) Symbol.v
 
 Absyn.vo: Absyn.v Symbol.vo
-	coqc Absyn.v
+	$(CC) Absyn.v
 
 Types.vo: Types.v Symbol.vo
-	coqc Types.v
+	$(CC) Types.v
 
 Env.vo: Env.v Symbol.vo Types.vo
-	coqc Env.v
+	$(CC) Env.v
 
-Semant.vo: Semant.v Absyn.vo Env.vo Symbol.vo Types.vo
-	coqc Semant.v
+Errors.vo: Errors.v
+	$(CC) Errors.v
+
+Semant.vo: Semant.v Absyn.vo Errors.vo Env.vo Symbol.vo Types.vo
+	$(CC) Semant.v
 
 clean:
 	rm -f *.vo *.glob

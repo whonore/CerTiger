@@ -50,6 +50,9 @@ Module Unique <: UNIQUE.
       + assumption.
   Qed.
 
+  Lemma init_unique : is_unique nil.
+  Proof. constructor. Qed.
+
   Lemma new_adds : forall u us us',
     new us = (us', u) ->
     In u us'.
@@ -90,16 +93,25 @@ Module Types.
   | NAME : symbol -> option ty -> ty
   | UNIT : ty.
 
-  Definition ty_eq (t1 t2 : ty) :=
-    match t1, t2 with
-    | RECORD _ u1, RECORD _ u2 => if Unique.unique_dec u1 u2 then true else false
-    | NIL, NIL => true
-    | INT, INT => true
-    | STRING, STRING => true
-    | ARRAY _ u1, ARRAY _ u2 => if Unique.unique_dec u1 u2 then true else false
-    | NAME _ _, NAME _ _ => false
-    | UNIT, UNIT => true
+  Fixpoint ty_dec (t1 t2 : ty) : {t1 = t2} + {t1 <> t2}.
+    repeat decide equality; try (apply Unique.unique_dec).
+  Defined.
+
+  Definition ty_compat (t1 t2 : ty) : bool :=
+    if ty_dec t1 t2 then true
+    else match t1, t2 with
+    | RECORD fs u, NIL => true
+    | NIL, RECORD fs u => true
     | _, _ => false
+    end.
+
+  Fixpoint actual_ty (t : ty) : option ty :=
+    match t with
+    | NAME _ oty => match oty with
+        | None => None
+        | Some ty => actual_ty ty
+        end
+    | _ => Some t
     end.
 
 End Types.
