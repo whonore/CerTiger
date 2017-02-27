@@ -23,14 +23,38 @@ Record composite_env := {
   ve : venv
 }.
 
+Section HELPERS.
+
 Definition mk_expty ty := {| exp := tt; ty := ty |}.
 Definition tmp : @res (expty * Types.upool) := ERR.
 
-Fixpoint tys_compat (ts1 ts2 : list Types.ty) : bool :=
-  match ts1, ts2 with
+Fixpoint list_eq {A} (eq : A -> A -> bool) (xs1 xs2 : list A): bool :=
+  match xs1, xs2 with
   | nil, nil => true
-  | t1 :: ts1', t2 :: ts2' => andb (Types.ty_compat t1 t2) (tys_compat ts1' ts2')
+  | x1 :: xs1', x2 :: xs2' => andb (eq x1 x2) (list_eq eq xs1' xs2')
   | _, _ => false
+  end.
+
+Definition tys_compat := list_eq Types.ty_compat.
+Definition syms_eq := list_eq Symbol.eq.
+
+Fixpoint sym_in (s : Symbol.t) (ss : list Symbol.t) : bool :=
+  match ss with
+  | nil => false
+  | s' :: ss' => orb (Symbol.eq s s') (sym_in s ss')
+  end.
+
+Fixpoint sym_nodup (ss : list Symbol.t) : bool :=
+  match ss with
+  | nil => true
+  | s :: ss' => andb (negb (sym_in s ss')) (sym_nodup ss')
+  end.
+
+Fixpoint make_rfs (names : list Symbol.t) (tys : list Types.ty) : list Types.rfield :=
+  match names, tys with
+  | nil, nil => nil
+  | n :: names', ty :: tys' => Types.mk_rfield n ty :: make_rfs names' tys'
+  | _, _ => nil
   end.
 
 Inductive opType : Set :=
@@ -44,6 +68,8 @@ Definition getOpType f :=
   | LtOp | LeOp | GtOp | GeOp => Ineq
   | EqOp | NeqOp => Eq
   end.
+
+End HELPERS.
 
 Section TYPE_CHECK.
 
@@ -69,11 +95,25 @@ Definition transOp (lty rty : expty) (f : opType) : @res expty:=
     end
     else ERR.
 
-Fixpoint transTy (te : tenv) (us : Types.upool) (tree : Absyn.ty) : @res (Types.ty * Types.upool) :=
+Fixpoint transFields (te : tenv) (us : Types.upool) (fs : list Symbol.t) : @res (list Types.ty) :=
+  match fs with
+  | nil => OK nil
+  | f :: fs' => do fty <- lift (Symbol.look te f);
+                do ftys <- transFields te us fs';
+                OK (fty :: ftys)
+  end.
+
+Definition transTy (te : tenv) (us : Types.upool) (tree : Absyn.ty) : @res (Types.ty * Types.upool) :=
   match tree with
-  | NameTy name => OK (Types.NIL, us) (* tmp *)
-  | RecordTy fields => OK (Types.NIL, us) (* tmp *)
-  | ArrayTy name => OK (Types.NIL, us) (* tmp *)
+  | NameTy name => do ty <- lift (Symbol.look te name);
+                   OK (ty, us)
+  | RecordTy fields => do ftys <- transFields te us (map tf_typ fields);
+                       check sym_nodup (map tf_name fields);
+                       let (us', u) := Types.unew us in
+                       OK (Types.RECORD (make_rfs (map tf_name fields) ftys) u, us')
+  | ArrayTy name => do ty <- lift (Symbol.look te name);
+                    let (us', u) := Types.unew us in
+                    OK (Types.ARRAY ty u, us')
   end.
 
 Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @res (expty * Types.upool) :=
@@ -83,22 +123,29 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
   | IntExp _ => OK (mk_expty Types.INT, us)
   | StringExp _ => OK (mk_expty Types.STRING, us)
   | AppExp f args => do entry <- lift (Symbol.look (ve ce) f);
-                     do argtys <- sequence (map (transExp ce us) args);
                      match entry with
                      | Env.FunEntry formtys retty =>
-                         check tys_compat (map (fun a => ty (fst a)) argtys) formtys;
-                         OK (mk_expty retty, us)
+                         do (argtys, us') <- transExplist ce us args;
+                         check tys_compat (map ty argtys) formtys;
+                         OK (mk_expty retty, us')
                      | _ => ERR
                      end
   | OpExp l f r => do (lty, us') <- transExp ce us l;
                    do (rty, us'') <- transExp ce us' r;
                    do ty <- transOp lty rty (getOpType f);
                    OK (ty, us'')
-  | RecordExp fields rty => do recty <- lift (Symbol.look (te ce) rty);
-                            tmp (* tmp *)
-  | SeqExp es => do etys <- sequence (map (transExp ce us) es); (* tmp *)
-                 (* OK (last etys {| exp := tt; ty := Types.UNIT |}) *)
-                 tmp
+  | RecordExp fvals fnames rty => do recty <- lift (Symbol.look (te ce) rty);
+                                  (* do recty' <- lift (Types.actual_ty recty); *)
+                                  match recty with
+                                  | Types.RECORD fields _ =>
+                                      check syms_eq fnames (map Types.rf_name fields);
+                                      do (etys, us') <- transExplist ce us fvals;
+                                      check tys_compat (map ty etys) (map Types.rf_type fields);
+                                      OK (mk_expty recty, us')
+                                  | _ => ERR
+                                  end
+  | SeqExp es => do (etys, us') <- transExplist ce us es;
+                 OK (last etys (mk_expty Types.UNIT), us')
   | AssignExp l r => tmp (* tmp *)
   | IfExp p t (Some e) => do (pty, us') <- transExp ce us p;
                           do (tty, us'') <- transExp ce us' t;
@@ -135,6 +182,13 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
                             | _ => ERR
                             end
   end
+with transExplist (ce : composite_env) (us : Types.upool) (trees : Absyn.explist) :  @res (list expty * Types.upool) :=
+  match trees with
+  | ENil => OK (nil, us)
+  | ECons e es => do (ety, us') <- transExp ce us e;
+                  do (etys, us'') <- transExplist ce us' es;
+                  OK (ety :: etys, us'')
+  end
 with transVar (ce : composite_env) (us : Types.upool) (tree : Absyn.var) : @res (expty * Types.upool) :=
   match tree with
   | SimpleVar name => do entry <- lift (Symbol.look (ve ce) name);
@@ -146,8 +200,8 @@ with transVar (ce : composite_env) (us : Types.upool) (tree : Absyn.var) : @res 
   | FieldVar v field => do (vty, us') <- transVar ce us v;
                         match ty vty with
                         | Types.RECORD ftys _ =>
-                            do field' <- lift (find (fun f => Symbol.sym_eq (fst f) field) ftys);
-                            OK (mk_expty (snd field'), us')
+                            do field' <- lift (find (fun f => Symbol.eq (Types.rf_name f) field) ftys);
+                            OK (mk_expty (Types.rf_type field'), us')
                         | _ => ERR
                         end
   | SubscriptVar v idx => do (vty, us') <- transVar ce us v;
@@ -163,6 +217,11 @@ with transDec (ce : composite_env) (us : Types.upool) (tree : Absyn.dec) : @res 
   | FunctionDec decs => OK (ce, us) (* tmp *)
   | VarDec v ty val => OK (ce, us) (* tmp *)
   | TypeDec decs => OK (ce, us) (* tmp *)
+  end
+with transDeclist (ce : composite_env) (us : Types.upool) (trees : list Absyn.dec) {struct trees} : @res (composite_env * Types.upool) :=
+  match trees with
+  | nil => OK (ce, us)
+  | d :: ds => OK (ce, us)
   end.
 
 Definition base_cenv : composite_env := {| ve := Env.base_venv; te := Env.base_tenv |}.
@@ -192,26 +251,27 @@ Inductive wt_op : Types.ty -> Types.ty -> opType -> Types.ty -> Prop :=
   | wt_eq_rnil : forall rty u,
       wt_op (Types.RECORD rty u) Types.NIL Eq Types.INT.
 
+Inductive wt_fields (te : tenv) (us : Types.upool) : list Symbol.t -> list Types.ty -> Prop :=
+  | wt_fnil :
+      wt_fields te us nil nil
+  | wt_fcons : forall f fs fty ftys,
+      Symbol.look te f = Some fty ->
+      wt_fields te us fs ftys ->
+      wt_fields te us (f :: fs) (fty :: ftys).
+
 Inductive wt_ty (te : tenv) (us : Types.upool) : Absyn.ty -> Types.ty -> Types.upool -> Prop :=
   | wt_namety : forall n ty,
       Symbol.look te n = Some ty ->
       wt_ty te us (NameTy n) ty us
   | wt_recty : forall fs ftys u us',
-      NoDup fs ->
-      wt_fs te us (map tf_typ fs) ftys ->
+      sym_nodup (map tf_name fs) = true ->
+      wt_fields te us (map tf_typ fs) ftys ->
       (us', u) = Types.unew us ->
-      wt_ty te us (RecordTy fs) (Types.RECORD (combine (map tf_typ fs) ftys) u) us'
+      wt_ty te us (RecordTy fs) (Types.RECORD (make_rfs (map tf_name fs) ftys) u) us'
   | wt_arrty : forall n ty u us',
       Symbol.look te n = Some ty ->
       (us', u) = Types.unew us ->
-      wt_ty te us (ArrayTy n) (Types.ARRAY ty u) us'
-with wt_fs (te : tenv) (us : Types.upool) : list Symbol.t -> list Types.ty -> Prop :=
-  | wt_fnil :
-      wt_fs te us nil nil
-  | wt_fcons : forall f fs fty ftys,
-      Symbol.look te f = Some fty ->
-      wt_fs te us fs ftys ->
-      wt_fs te us (f :: fs) (fty :: ftys).
+      wt_ty te us (ArrayTy n) (Types.ARRAY ty u) us'.
 
 Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
   | wt_varexp : forall v ty us',
@@ -232,11 +292,18 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
       wt_exp ce us' r rty us'' ->
       wt_op lty rty (getOpType f) fty ->
       wt_exp ce us (OpExp l f r) fty us''
-  | wt_recexp : (* tmp *)
-      wt_exp ce us NilExp Types.NIL us
-  | wt_seqexp : forall es tys us',
+  | wt_recexp : forall fvals fnames ftys rty ty u fields us', (* tmp *)
+      Symbol.look (te ce) rty = Some ty ->
+      (* Types.actual_ty ty = Some (Types.RECORD fields u) -> *)
+      ty = Types.RECORD fields u ->
+      syms_eq fnames (map Types.rf_name fields) = true ->
+      wt_explist ce us fvals ftys us' ->
+      tys_compat ftys (map Types.rf_type fields) = true ->
+      wt_exp ce us (RecordExp fvals fnames rty) (Types.RECORD fields u) us'
+  | wt_seqexp : forall es tys ty us',
       wt_explist ce us es tys us' ->
-      wt_exp ce us (SeqExp es) (last tys Types.UNIT) us'
+      ty = last tys Types.UNIT ->
+      wt_exp ce us (SeqExp es) ty us'
   | wt_assignexp : forall v e vty ety us' us'' u fs,
       wt_var ce us v vty us' ->
       wt_exp ce us' e ety us'' ->
@@ -272,13 +339,13 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
       wt_exp ce us sz Types.INT us' ->
       wt_exp ce us init ty' us'' ->
       wt_exp ce us (ArrayExp aty sz init) (Types.ARRAY ty' u) us''
-with wt_explist (ce : composite_env) (us : Types.upool) : list Absyn.exp -> list Types.ty -> Types.upool -> Prop :=
+with wt_explist (ce : composite_env) (us : Types.upool) : Absyn.explist -> list Types.ty -> Types.upool -> Prop :=
   | wt_enil :
-      wt_explist ce us nil nil us
+      wt_explist ce us ENil nil us
   | wt_econs : forall e ty es tys us' us'',
       wt_exp ce us e ty us' ->
       wt_explist ce us' es tys us'' ->
-      wt_explist ce us (e :: es) (ty :: tys) us''
+      wt_explist ce us (ECons e es) (ty :: tys) us''
 with wt_var (ce : composite_env) (us : Types.upool) : Absyn.var -> Types.ty -> Types.upool -> Prop :=
   | wt_svar : forall n ty ty',
       Symbol.look (ve ce) n = Some (Env.VarEntry ty) ->
@@ -286,7 +353,7 @@ with wt_var (ce : composite_env) (us : Types.upool) : Absyn.var -> Types.ty -> T
       wt_var ce us (SimpleVar n) ty' us
   | wt_fvar : forall v f fs u ty ty' us',
       wt_var ce us v (Types.RECORD fs u) us' ->
-      In (f, ty) fs ->
+      In (Types.mk_rfield f ty) fs -> (* won't work because In uses =, not sym_eq *)
       Types.actual_ty ty = Some ty' ->
       wt_var ce us (FieldVar v f) ty' us'
   | wt_ssvar : forall v idx u ty ty' us' us'',
@@ -323,11 +390,6 @@ Inductive wt_prog : Absyn.exp -> Types.ty -> Types.upool -> Set :=
       wt_exp {| ve := Env.base_venv; te := Env.base_tenv |} Types.uinit p ty us' ->
       wt_prog p ty us'.
 
-Ltac inv_texp := match goal with
-  | [H : transExp _ _ _ = OK (_, _) |- _] => inversion H; subst; try solve [constructor]
-  | _ => idtac
-  end.
-
 Lemma transOp_sound : forall l r f ety,
   transOp l r f = OK ety ->
   wt_op (ty l) (ty r) f (ty ety).
@@ -340,26 +402,134 @@ Proof.
   unfold Types.ty_compat in Heqb; destruct Types.ty_dec; try discriminate; inversion e; constructor.
 Qed.
 
+Lemma transFields_sound : forall te us fs tys,
+  transFields te us fs = OK tys ->
+  wt_fields te us fs tys.
+Proof.
+  induction fs; intros; monadInv H; constructor.
+  - apply lift_option in EQ; assumption.
+  - apply IHfs; assumption.
+Qed.
+
+Lemma transTy_sound : forall te us abty ty us',
+  transTy te us abty = OK (ty, us') ->
+  wt_ty te us abty ty us'.
+Proof.
+  destruct abty; intros; monadInv H; constructor; auto using lift_option, transFields_sound.
+Qed.
+
 Lemma transNilExp_sound : forall ce us ety us',
   transExp ce us NilExp = OK (ety, us') ->
   wt_exp ce us NilExp (ty ety) us'.
-Proof. intros; inv_texp. Qed.
+Proof. intros; monadInv H; constructor. Qed.
 
 Lemma transIntExp_sound : forall ce us n ety us',
   transExp ce us (IntExp n) = OK (ety, us') ->
   wt_exp ce us (IntExp n) (ty ety) us'.
-Proof. intros; inv_texp. Qed.
+Proof. intros; monadInv H; constructor. Qed.
 
 Lemma transStringExp_sound : forall ce us s ety us',
   transExp ce us (StringExp s) = OK (ety, us') ->
   wt_exp ce us (StringExp s) (ty ety) us'.
-Proof. intros; inv_texp. Qed.
+Proof. intros; monadInv H; constructor. Qed.
+
+Lemma transAppExp_sound : forall ce us f args argtys ety us',
+  wt_explist ce us args argtys us' ->
+  transExp ce us (AppExp f args) = OK (ety, us') ->
+  wt_exp ce us (AppExp f args) (ty ety) us'.
+Proof. Admitted.
+
+Lemma transOpExp_sound : forall ce us l r f ety lty rty us' us'',
+  wt_exp ce us l lty us' ->
+  wt_exp ce us' r rty us'' ->
+  wt_op lty rty (getOpType f) (ty ety) ->
+  transExp ce us (OpExp l f r) = OK (ety, us'') ->
+  wt_exp ce us (OpExp l f r) (ty ety) us''.
+Proof.
+  intros; monadInv H2; econstructor; eassumption.
+Qed.
+
+(*
+Lemma transRecordExp_sound : forall ce us fns fvs rty ftys ety us',
+  wt_explist ce us fvs (map ty ftys) us' ->
+  transExp ce us (RecordExp fvs fns rty) = OK (ety, us') ->
+  transExplist ce us fvs = OK (ftys, us') ->
+  wt_exp ce us (RecordExp fvs fns rty) (ty ety) us'.
+Proof.
+  intros; monadInv H0; destruct x; monadInv EQ0; econstructor; try eauto using lift_option.
+  inversion H1; assumption.
+Qed.
+*)
 
 Theorem transExp_sound : forall ce us e ety us',
   transExp ce us e = OK (ety, us') ->
-  wt_exp ce us e (ty ety) us'.
+  wt_exp ce us e (ty ety) us'
+with transExplist_sound : forall ce us es etys us',
+  transExplist ce us es = OK (etys, us') ->
+  wt_explist ce us es (map ty etys) us'
+with transVar_sound : forall ce us v ety us',
+  transVar ce us v = OK (ety, us') ->
+  wt_var ce us v (ty ety) us'
+with transDec_sound : forall ce us d ce' us',
+  transDec ce us d = OK (ce', us') ->
+  wt_dec ce us d ce' us'
+with transDeclist_sound : forall ce us ds ce' us',
+  transDeclist ce us ds = OK (ce', us') ->
+  wt_declist ce us ds ce' us'.
 Proof.
-Admitted.
+  - destruct e; intros.
+    + inversion H. constructor. apply transVar_sound. assumption.
+    + apply transNilExp_sound; assumption.
+    + apply transIntExp_sound; assumption.
+    + apply transStringExp_sound; assumption.
+    + pose proof H; simpl in H; monadInv H.
+      destruct x; monadInv EQ0.
+      eapply transAppExp_sound.
+      apply transExplist_sound; apply EQ1.
+      assumption.
+    + pose proof H; simpl in H; monadInv H.
+      eapply transOpExp_sound.
+      apply transExp_sound; eassumption.
+      apply transExp_sound; eassumption.
+      apply transOp_sound; assumption.
+      assumption.
+    + monadInv H.
+      destruct x; monadInv EQ0.
+      econstructor; try solve [reflexivity | eassumption].
+      eauto using lift_option.
+      apply transExplist_sound; apply EQ2.
+    + monadInv H; destruct e.
+      * monadInv EQ; econstructor; [econstructor | reflexivity].
+      * monadInv EQ; econstructor.
+        econstructor. apply transExp_sound. eassumption.
+        apply transExplist_sound. eassumption.
+        assert (forall xs d, ty (last xs d) = last (map ty xs) (ty d)).
+        { admit. }
+        apply H.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+    + admit.
+  - destruct es; intros.
+    + inversion H; constructor.
+    + monadInv H. econstructor.
+      apply transExp_sound; eassumption.
+      apply transExplist_sound; eassumption.
+  - destruct v; intros.
+    + admit.
+    + admit.
+    + admit.
+  - destruct d; intros.
+    + admit.
+    + admit.
+    + admit.
+  - destruct ds; intros.
+    + inversion H; constructor.
+    + admit.
+Qed.
 
 Theorem transProg_sound : forall p ety us',
   transProg p = OK (ety, us') ->

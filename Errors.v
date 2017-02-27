@@ -47,6 +47,76 @@ Definition lift {A} (o : option A) : @res A :=
 
 End RESMONAD.
 
+Section MONADFACTS.
+
+Lemma bind_inversion : forall {A B : Type} (f : @res A) (g : A -> @res B) {y : B},
+  bind f g = OK y ->
+  exists x, f = OK x /\ g x = OK y.
+Proof.
+Admitted.
+
+Lemma bind2_inversion : forall {A B C : Type} (f : @res (A * B)) (g : A -> B -> @res C) {z : C},
+  bind2 f g = OK z ->
+  exists x, exists y, f = OK (x, y) /\ g x y = OK z.
+Proof.
+Admitted.
+
+Lemma lift_option : forall {A : Type} (f : option A) (x : A),
+  lift f = OK x ->
+  f = Some x.
+Proof.
+  intros. destruct f; [inversion H; reflexivity | discriminate].
+Qed.
+
+End MONADFACTS.
+
+Ltac monadInv1 H :=
+  match type of H with
+  | (OK _ = OK _) => inversion H; clear H; try subst
+  | (ERR = OK _) => discriminate
+  | ((if ?P then _ else ERR) = OK _) =>
+      let EQ := fresh "EQ" in (
+      destruct P eqn:EQ; [try (monadInv1 H) | discriminate])
+  | (bind ?F ?G = OK ?X) =>
+      let x := fresh "x" in (
+      let EQ1 := fresh "EQ" in (
+      let EQ2 := fresh "EQ" in (
+      destruct (bind_inversion F G H) as [x [EQ1 EQ2]];
+      clear H;
+      try (monadInv1 EQ2))))
+  | (bind2 ?F ?G = OK ?X) =>
+      let x1 := fresh "x" in (
+      let x2 := fresh "x" in (
+      let EQ1 := fresh "EQ" in (
+      let EQ2 := fresh "EQ" in (
+      destruct (bind2_inversion F G H) as [x1 [x2 [EQ1 EQ2]]];
+      clear H;
+      try (monadInv1 EQ2)))))
+  end.
+
+Ltac monadInv H :=
+  match type of H with
+  | (OK _ = OK _) => monadInv1 H
+  | (ERR = OK _) => monadInv1 H
+  | ((if ?P then _ else ERR) = OK _) => monadInv1 H
+  | (bind ?F ?G = OK ?X) => monadInv1 H
+  | (bind2 ?F ?G = OK ?X) => monadInv1 H
+  | (?F _ _ _ _ _ _ _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ _ _ _ _ _= OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ _ _ _ _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ _ _ _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ _ _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  | (?F _ = OK _) =>
+      ((progress simpl in H) || unfold F in H); monadInv1 H
+  end.
+
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
   (at level 200, X ident, A at level 100, B at level 200).
 

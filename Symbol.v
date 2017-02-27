@@ -5,7 +5,7 @@ Require Import String.
 Module Type SYMBOL.
 
   Parameter t : Set.
-  Parameter sym_eq : t -> t -> bool.
+  Parameter eq : t -> t -> bool.
 
   Parameter sym_tbl : Set.
   Parameter sym_empty : sym_tbl.
@@ -30,7 +30,7 @@ Module Symbol <: SYMBOL.
 
   Definition t := (string * nat)%type.
 
-  Definition sym_eq (s1 s2 : t) := beq_nat (snd s1) (snd s2).
+  Definition eq (s1 s2 : t) := beq_nat (snd s1) (snd s2).
 
   Definition sym_tbl := list t.
   Definition sym_empty : sym_tbl := nil.
@@ -69,7 +69,7 @@ Module Symbol <: SYMBOL.
     Fixpoint look (tbl : table) sym :=
       match tbl with
       | nil => None
-      | (sym', val) :: tbl' => if sym_eq sym sym'
+      | (sym', val) :: tbl' => if eq sym sym'
                                  then Some val
                                  else look tbl' sym
       end.

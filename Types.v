@@ -85,13 +85,18 @@ Module Types.
   Definition unew us : upool * Unique.t := Unique.new us.
 
   Inductive ty : Set :=
-  | RECORD : list (symbol * ty) -> Unique.t -> ty
+  | RECORD : list rfield -> Unique.t -> ty
   | NIL : ty
   | INT : ty
   | STRING : ty
   | ARRAY : ty -> Unique.t -> ty
   | NAME : symbol -> option ty -> ty
-  | UNIT : ty.
+  | UNIT : ty
+  with rfield : Set :=
+  | mk_rfield : symbol -> ty -> rfield.
+
+  Definition rf_name (rf : rfield) := let (name, _) := rf in name.
+  Definition rf_type (rf : rfield) := let (_, type) := rf in type.
 
   Fixpoint ty_dec (t1 t2 : ty) : {t1 = t2} + {t1 <> t2}.
     repeat decide equality; try (apply Unique.unique_dec).

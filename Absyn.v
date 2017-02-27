@@ -26,6 +26,9 @@ with tfield : Set :=
 Definition tf_name (tf : tfield) := let (name, _) := tf in name.
 Definition tf_typ (tf : tfield) := let (_, typ) := tf in typ.
 
+(* In order to satisfy Coq's termination checker later on, explist must be used instead of list exp
+   in some places. *)
+
 Inductive var : Set :=
   | SimpleVar : symbol -> var
   | FieldVar : var -> symbol -> var
@@ -35,10 +38,10 @@ with exp : Set :=
   | NilExp : exp
   | IntExp : nat -> exp
   | StringExp : string -> exp
-  | AppExp : symbol -> list exp -> exp
+  | AppExp : symbol -> explist -> exp
   | OpExp : exp -> oper -> exp -> exp
-  | RecordExp : list efield -> symbol -> exp
-  | SeqExp : list exp -> exp
+  | RecordExp : explist -> list symbol -> symbol -> exp (* assume 1st and 2nd args have same length *)
+  | SeqExp : explist -> exp
   | AssignExp : var -> exp -> exp
   | IfExp : exp -> exp -> option exp -> exp
   | WhileExp : exp -> exp -> exp
@@ -46,12 +49,13 @@ with exp : Set :=
   | BreakExp : exp
   | LetExp : list dec -> exp -> exp
   | ArrayExp : symbol -> exp -> exp -> exp
+with explist : Set :=
+  | ENil : explist
+  | ECons : exp -> explist -> explist
 with dec : Set :=
   | FunctionDec : list fundec -> dec
   | VarDec : vardec -> option symbol -> exp -> dec
   | TypeDec : list tydec -> dec
-with efield : Set :=
-  | mk_efield : symbol -> exp -> efield
 with vardec : Set :=
   | mk_vardec : symbol -> bool -> vardec
 with formals : Set :=
