@@ -110,6 +110,20 @@ Module Types.
     | _, _ => false
     end.
 
+  Lemma ty_compat_commut : forall t1 t2,
+    ty_compat t1 t2 = ty_compat t2 t1.
+  Proof.
+    destruct t1, t2; try reflexivity;
+    match goal with
+    | [ |- ty_compat ?X ?Y = ty_compat ?Y ?X ] =>
+        destruct (ty_dec X Y) as [H1 | H1] eqn:EQ1;
+        destruct (ty_dec Y X) as [H2 | H2] eqn:EQ2;
+        try (inversion H1; reflexivity);
+        try (inversion H2; reflexivity);
+        try (unfold ty_compat; rewrite EQ1; rewrite EQ2; reflexivity)
+    end.
+  Qed.
+
   Fixpoint actual_ty (t : ty) : option ty :=
     match t with
     | NAME _ oty => match oty with
@@ -118,5 +132,13 @@ Module Types.
         end
     | _ => Some t
     end.
+
+  Lemma actual_not_name : forall t n oty,
+    actual_ty t <> Some (NAME n oty).
+  Proof.
+    fix 1.
+    destruct t; try discriminate.
+    destruct o; [simpl; apply actual_not_name | discriminate].
+  Qed.
 
 End Types.
