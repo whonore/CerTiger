@@ -76,4 +76,31 @@ Module Symbol <: SYMBOL.
 
   End TABLE.
 
+  (* This should probably be done with typeclasses or something cleaner *)
+
+  Lemma eq_refl : forall s,
+    eq s s = true.
+  Proof.
+    unfold eq; symmetry; apply beq_nat_refl.
+  Qed.
+
+  Lemma eq_sym : forall s1 s2,
+    eq s1 s2 = eq s2 s1.
+  Proof.
+    unfold eq; destruct s1, s2; simpl;
+    generalize dependent n0; induction n; destruct n0; simpl; auto.
+  Qed.
+
+  Lemma eq_trans : forall s1 s2 s3,
+    eq s1 s2 = true ->
+    eq s2 s3 = true ->
+    eq s1 s3 = true.
+  Proof.
+    unfold eq; intros; destruct s1, s2, s3; simpl in *.
+    generalize dependent n1; generalize dependent n0.
+    induction n; intros; destruct n0, n1; auto.
+    discriminate.
+    eapply IHn; eauto.
+  Qed.
+
 End Symbol.

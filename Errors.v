@@ -53,13 +53,15 @@ Lemma bind_inversion : forall {A B : Type} (f : @res A) (g : A -> @res B) {y : B
   bind f g = OK y ->
   exists x, f = OK x /\ g x = OK y.
 Proof.
-Admitted.
+  destruct f; [eauto | discriminate].
+Qed.
 
 Lemma bind2_inversion : forall {A B C : Type} (f : @res (A * B)) (g : A -> B -> @res C) {z : C},
   bind2 f g = OK z ->
   exists x, exists y, f = OK (x, y) /\ g x y = OK z.
 Proof.
-Admitted.
+  destruct f; [destruct p; eauto | discriminate].
+Qed.
 
 Lemma lift_option : forall {A : Type} (f : option A) (x : A),
   lift f = OK x ->
@@ -77,6 +79,7 @@ Ltac monadInv1 H :=
   | ((if ?P then _ else ERR) = OK _) =>
       let EQ := fresh "EQ" in (
       destruct P eqn:EQ; [try (monadInv1 H) | discriminate])
+  | (match ?X with | _ => _ end = OK _) => destruct X eqn:?HEQ; try (monadInv1 H)
   | (bind ?F ?G = OK ?X) =>
       let x := fresh "x" in (
       let EQ1 := fresh "EQ" in (
@@ -99,6 +102,7 @@ Ltac monadInv H :=
   | (OK _ = OK _) => monadInv1 H
   | (ERR = OK _) => monadInv1 H
   | ((if ?P then _ else ERR) = OK _) => monadInv1 H
+  | (match ?X with | _ => _ end = OK _) => monadInv1 H
   | (bind ?F ?G = OK ?X) => monadInv1 H
   | (bind2 ?F ?G = OK ?X) => monadInv1 H
   | (?F _ _ _ _ _ _ _ = OK _) =>

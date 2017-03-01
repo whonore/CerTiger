@@ -102,6 +102,50 @@ Module Types.
     repeat decide equality; try (apply Unique.unique_dec).
   Defined.
 
+  Definition rf_eq (rf1 rf2 : rfield) : bool :=
+    if Symbol.eq (rf_name rf1) (rf_name rf2)
+      then if ty_dec (rf_type rf1) (rf_type rf2)
+        then true
+        else false
+      else false.
+
+  Lemma rf_eq_refl : forall rf,
+    rf_eq rf rf = true.
+  Proof.
+    intros; unfold rf_eq; rewrite Symbol.eq_refl.
+    destruct (ty_dec (rf_type rf) (rf_type rf)); congruence.
+  Qed.
+
+  Lemma rf_eq_sym : forall rf1 rf2,
+    rf_eq rf1 rf2 = rf_eq rf2 rf1.
+  Proof.
+    destruct rf1, rf2; unfold rf_eq;
+    simpl; rewrite Symbol.eq_sym.
+    destruct (Symbol.eq s0 s);
+    destruct (ty_dec t t0);
+    destruct (ty_dec t0 t);
+    try subst; congruence.
+  Qed.
+
+  Lemma rf_eq_trans : forall rf1 rf2 rf3,
+    Types.rf_eq rf1 rf2 = true ->
+    Types.rf_eq rf2 rf3 = true ->
+    Types.rf_eq rf1 rf3 = true.
+  Proof.
+    unfold rf_eq; intros.
+    destruct (Symbol.eq (rf_name rf1) (rf_name rf2)) eqn:EQ1;
+    destruct (Symbol.eq (rf_name rf2) (rf_name rf3)) eqn:EQ2;
+    destruct (Symbol.eq (rf_name rf1) (rf_name rf3)) eqn:EQ3;
+    try (repeat match goal with
+    | [ H : (if ?X then _ else _) = _ |- _ ] => destruct X
+    | [ |- (if ?X then _ else _) = _ ] => destruct X
+    end; congruence).
+    generalize Symbol.eq_trans; intros.
+    specialize H1 with (rf_name rf1) (rf_name rf2) (rf_name rf3).
+    apply H1 in EQ1. congruence.
+    assumption.
+  Qed.
+
   Definition ty_compat (t1 t2 : ty) : bool :=
     if ty_dec t1 t2 then true
     else match t1, t2 with
@@ -110,7 +154,7 @@ Module Types.
     | _, _ => false
     end.
 
-  Lemma ty_compat_commut : forall t1 t2,
+  Lemma ty_compat_sym : forall t1 t2,
     ty_compat t1 t2 = ty_compat t2 t1.
   Proof.
     destruct t1, t2; try reflexivity;

@@ -28,27 +28,85 @@ Section HELPERS.
 Definition mk_expty ty := {| exp := tt; ty := ty |}.
 Definition tmp : @res (expty * Types.upool) := ERR.
 
-Fixpoint list_eq {A} (eq : A -> A -> bool) (xs1 xs2 : list A): bool :=
+Fixpoint list_eq {A} (eq : A -> A -> bool) (xs1 xs2 : list A) : bool :=
   match xs1, xs2 with
   | nil, nil => true
   | x1 :: xs1', x2 :: xs2' => andb (eq x1 x2) (list_eq eq xs1' xs2')
   | _, _ => false
   end.
 
-Definition tys_compat := list_eq Types.ty_compat.
-Definition syms_eq := list_eq Symbol.eq.
-
-Fixpoint sym_in (s : Symbol.t) (ss : list Symbol.t) : bool :=
-  match ss with
+Fixpoint list_in {A} (eq : A -> A -> bool) (x : A) (xs : list A) : bool :=
+  match xs with
   | nil => false
-  | s' :: ss' => orb (Symbol.eq s s') (sym_in s ss')
+  | x' :: xs' => orb (eq x x') (list_in eq x xs')
   end.
 
-Fixpoint sym_nodup (ss : list Symbol.t) : bool :=
-  match ss with
+Fixpoint list_nodup {A} (fin : A -> list A -> bool) (xs : list A) : bool :=
+  match xs with
   | nil => true
-  | s :: ss' => andb (negb (sym_in s ss')) (sym_nodup ss')
+  | x :: xs' => andb (negb (fin x xs')) (list_nodup fin xs')
   end.
+
+Definition tys_compat := list_eq Types.ty_compat.
+
+Definition syms_eq := list_eq Symbol.eq.
+Definition sym_in := list_in Symbol.eq.
+Definition sym_nodup := list_nodup sym_in.
+
+Definition rf_in := list_in Types.rf_eq.
+Fixpoint rf_find (s : Symbol.t) (rfs : list Types.rfield) : option Types.rfield :=
+  match rfs with
+  | nil => None
+  | rf :: rfs' => if Symbol.eq s (Types.rf_name rf)
+                    then Some rf
+                    else rf_find s rfs'
+  end.
+
+Lemma rf_find_name : forall s rf rfs,
+  rf_find s rfs = Some rf ->
+  Symbol.eq (Types.rf_name rf) s = true.
+Proof.
+  intros; induction rfs; inversion H.
+  destruct (Symbol.eq s (Types.rf_name a)) eqn:EQ.
+  - inversion H1; subst; rewrite Symbol.eq_sym; assumption.
+  - auto.
+Qed.
+
+Lemma rf_find_in : forall s rf rfs,
+  rf_find s rfs = Some rf ->
+  rf_in rf rfs = true.
+Proof.
+  intros; induction rfs; inversion H.
+  destruct (Symbol.eq s (Types.rf_name a)) eqn:EQ.
+  - inversion H1; subst; unfold rf_in; simpl.
+    rewrite Types.rf_eq_refl; reflexivity.
+  - unfold rf_in; simpl.
+    apply IHrfs in H1; fold (rf_in rf rfs); rewrite H1.
+    rewrite Bool.orb_true_r; reflexivity.
+Qed.
+
+Lemma rf_eq_in : forall rf1 rf2 rfs,
+  Types.rf_eq rf1 rf2 = true ->
+  rf_in rf1 rfs = rf_in rf2 rfs.
+Proof.
+  intros; induction rfs.
+  - unfold rf_in; reflexivity.
+  - unfold rf_in; simpl.
+    fold (rf_in rf1 rfs); fold (rf_in rf2 rfs); rewrite IHrfs.
+    destruct (rf_in rf2 rfs); [repeat rewrite Bool.orb_true_r; reflexivity | repeat rewrite Bool.orb_false_r].
+    destruct (Types.rf_eq rf1 a) eqn:EQ1; destruct (Types.rf_eq rf2 a) eqn:EQ2; try reflexivity;
+    [specialize Types.rf_eq_trans with rf2 rf1 a; intros; apply H0 in EQ1 |
+     specialize Types.rf_eq_trans with rf1 rf2 a; intros; apply H0 in EQ2];
+    try congruence; eauto using Types.rf_eq_sym.
+Qed.
+
+Lemma sym_eq_rf_eq : forall s1 s2 ty,
+  Symbol.eq s1 s2 = true ->
+  Types.rf_eq (Types.mk_rfield s1 ty) (Types.mk_rfield s2 ty) = true.
+Proof.
+  intros; unfold Types.rf_eq; simpl; rewrite H.
+  destruct (Types.ty_dec ty0 ty0); congruence.
+Qed.
 
 Fixpoint make_rfs (names : list Symbol.t) (tys : list Types.ty) : list Types.rfield :=
   match names, tys with
@@ -146,7 +204,10 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
                                   end
   | SeqExp es => do (etys, us') <- transExplist ce us es;
                  OK (last etys (mk_expty Types.UNIT), us')
-  | AssignExp l r => tmp (* tmp *)
+  | AssignExp l r => do (vty, us') <- transVar ce us l;
+                     do (ety, us'') <- transExp ce us' r;
+                     check Types.ty_compat (ty vty) (ty ety);
+                     OK (mk_expty Types.UNIT, us'')
   | IfExp p t (Some e) => do (pty, us') <- transExp ce us p;
                           do (tty, us'') <- transExp ce us' t;
                           do (ety, us''') <- transExp ce us'' e;
@@ -200,15 +261,17 @@ with transVar (ce : composite_env) (us : Types.upool) (tree : Absyn.var) : @res 
   | FieldVar v field => do (vty, us') <- transVar ce us v;
                         match ty vty with
                         | Types.RECORD ftys _ =>
-                            do field' <- lift (find (fun f => Symbol.eq (Types.rf_name f) field) ftys);
-                            OK (mk_expty (Types.rf_type field'), us')
+                            do field' <- lift (rf_find field ftys);
+                            do fieldty <- lift (Types.actual_ty (Types.rf_type field'));
+                            OK (mk_expty fieldty, us')
                         | _ => ERR
                         end
-  | SubscriptVar v idx => do (vty, us') <- transVar ce us v;
-                          do (idxty, us'') <- transExp ce us' idx;
+  | SubscriptVar v idx => do (idxty, us') <- transExp ce us idx;
+                          do (vty, us'') <- transVar ce us' v;
                           check Types.ty_compat (ty idxty) Types.INT;
                           match ty vty with
-                          | Types.ARRAY elty _ => OK (mk_expty elty, us'')
+                          | Types.ARRAY elty _ => do elty' <- lift (Types.actual_ty elty);
+                                                  OK (mk_expty elty', us'')
                           | _ => ERR
                           end
   end
@@ -355,7 +418,7 @@ with wt_var (ce : composite_env) (us : Types.upool) : Absyn.var -> Types.ty -> T
       wt_var ce us (SimpleVar n) ty' us
   | wt_fvar : forall v f fs u ty ty' us',
       wt_var ce us v (Types.RECORD fs u) us' ->
-      In (Types.mk_rfield f ty) fs -> (* won't work because In uses =, not sym_eq *)
+      rf_in (Types.mk_rfield f ty) fs = true ->
       Types.actual_ty ty = Some ty' ->
       wt_var ce us (FieldVar v f) ty' us'
   | wt_ssvar : forall v idx u ty ty' us' us'',
@@ -447,13 +510,12 @@ Proof.
     + monadInv H; constructor.
     + monadInv H; constructor.
     + monadInv H; constructor.
-    + monadInv H; destruct x; monadInv EQ0.
-      econstructor; eauto using lift_option.
+    + monadInv H; econstructor; eauto using lift_option.
     + monadInv H; econstructor.
       apply transExp_sound; eassumption.
       apply transExp_sound; eassumption.
       apply transOp_sound; eassumption.
-    + monadInv H; destruct x0; monadInv EQ2.
+    + monadInv H.
       econstructor; try eassumption.
       eauto using lift_option. eauto using lift_option.
       apply transExplist_sound; apply EQ3.
@@ -469,7 +531,10 @@ Proof.
           - intros; simpl; rewrite <- IHxs; destruct xs; reflexivity.
         }
         apply Htymap.
-    + admit.
+    + monadInv H; econstructor.
+      apply transVar_sound; eassumption.
+      apply transExp_sound; eassumption.
+      eassumption.
     + destruct o; monadInv H.
       { econstructor.
         - apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
@@ -481,28 +546,41 @@ Proof.
         - apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
         - apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
       }
-    + monadInv H. econstructor.
+    + monadInv H; econstructor.
       apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
       apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
     + admit.
     + monadInv H; constructor.
     + admit.
-    + monadInv H; destruct x; monadInv EQ3.
-      econstructor.
+    + monadInv H; econstructor.
       eauto using lift_option.
       reflexivity.
       apply transExp_sound in EQ1; destruct (ty x0); try discriminate; eassumption.
       apply transExp_sound. eassumption.
-      rewrite Types.ty_compat_commut. eassumption.
+      rewrite Types.ty_compat_sym; eassumption.
   - destruct es; intros.
     + inversion H; constructor.
-    + monadInv H. econstructor.
+    + monadInv H; econstructor.
       apply transExp_sound; eassumption.
       apply transExplist_sound; eassumption.
   - destruct v; intros.
-    + admit.
-    + admit.
-    + admit.
+    + monadInv H; econstructor; eauto using lift_option.
+    + monadInv H; econstructor.
+      apply transVar_sound in EQ; rewrite HEQ in EQ; eassumption.
+      { apply lift_option in EQ1.
+        pose proof EQ1.
+        apply rf_find_in in EQ1.
+        apply rf_find_name in H.
+        erewrite rf_eq_in. apply EQ1.
+        apply sym_eq_rf_eq.
+        fold (Types.rf_name x1).
+        rewrite Symbol.eq_sym; apply H.
+      }
+      eauto using lift_option.
+    + monadInv H; econstructor.
+      apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
+      apply transVar_sound in EQ1. rewrite HEQ in EQ1; eassumption.
+      auto using lift_option.
   - destruct d; intros.
     + admit.
     + admit.
