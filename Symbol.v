@@ -32,6 +32,33 @@ Module Symbol <: SYMBOL.
 
   Definition eq (s1 s2 : t) := beq_nat (snd s1) (snd s2).
 
+  (* This should probably be done with typeclasses or something cleaner *)
+
+  Lemma eq_refl : forall s,
+    eq s s = true.
+  Proof.
+    unfold eq; symmetry; apply beq_nat_refl.
+  Qed.
+
+  Lemma eq_sym : forall s1 s2,
+    eq s1 s2 = eq s2 s1.
+  Proof.
+    unfold eq; destruct s1, s2; simpl;
+    generalize dependent n0; induction n; destruct n0; simpl; auto.
+  Qed.
+
+  Lemma eq_trans : forall s1 s2 s3,
+    eq s1 s2 = true ->
+    eq s2 s3 = true ->
+    eq s1 s3 = true.
+  Proof.
+    unfold eq; intros; destruct s1, s2, s3; simpl in *.
+    generalize dependent n1; generalize dependent n0.
+    induction n; intros; destruct n0, n1; auto.
+    discriminate.
+    eapply IHn; eauto.
+  Qed.
+
   Definition sym_tbl := list t.
   Definition sym_empty : sym_tbl := nil.
   Fixpoint sym_find (tbl : sym_tbl) name :=
@@ -74,33 +101,17 @@ Module Symbol <: SYMBOL.
                                  else look tbl' sym
       end.
 
+    Lemma empty_look : forall s,
+      look empty s = None.
+    Proof. reflexivity. Qed.
+
+    Lemma enter_shadow : forall tbl s v1 v2,
+      look tbl s = Some v1 ->
+      look (enter tbl s v2) s = Some v2.
+    Proof.
+      intros; simpl; rewrite eq_refl; reflexivity.
+    Qed.
+
   End TABLE.
-
-  (* This should probably be done with typeclasses or something cleaner *)
-
-  Lemma eq_refl : forall s,
-    eq s s = true.
-  Proof.
-    unfold eq; symmetry; apply beq_nat_refl.
-  Qed.
-
-  Lemma eq_sym : forall s1 s2,
-    eq s1 s2 = eq s2 s1.
-  Proof.
-    unfold eq; destruct s1, s2; simpl;
-    generalize dependent n0; induction n; destruct n0; simpl; auto.
-  Qed.
-
-  Lemma eq_trans : forall s1 s2 s3,
-    eq s1 s2 = true ->
-    eq s2 s3 = true ->
-    eq s1 s3 = true.
-  Proof.
-    unfold eq; intros; destruct s1, s2, s3; simpl in *.
-    generalize dependent n1; generalize dependent n0.
-    induction n; intros; destruct n0, n1; auto.
-    discriminate.
-    eapply IHn; eauto.
-  Qed.
 
 End Symbol.
