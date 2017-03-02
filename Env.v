@@ -10,8 +10,8 @@ Module Type ENV.
   Parameter ty : Set.
 
   Inductive enventry : Set :=
-  | VarEntry : ty -> enventry
-  | FunEntry : list ty -> ty -> enventry.
+    | VarEntry : ty -> enventry
+    | FunEntry : list ty -> ty -> enventry.
 
   Parameter base_tenv : @Symbol.table ty.
   Parameter base_venv : @Symbol.table enventry.
@@ -24,8 +24,8 @@ Module Env <: ENV.
   Definition ty := Types.ty.
 
   Inductive enventry : Set :=
-  | VarEntry : ty -> enventry
-  | FunEntry : list ty -> ty -> enventry.
+    | VarEntry : ty -> enventry
+    | FunEntry : list ty -> ty -> enventry.
 
   Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
     Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).

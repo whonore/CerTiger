@@ -85,15 +85,15 @@ Module Types.
   Definition unew us : upool * Unique.t := Unique.new us.
 
   Inductive ty : Set :=
-  | RECORD : list rfield -> Unique.t -> ty
-  | NIL : ty
-  | INT : ty
-  | STRING : ty
-  | ARRAY : ty -> Unique.t -> ty
-  | NAME : symbol -> option ty -> ty
-  | UNIT : ty
+    | RECORD : list rfield -> Unique.t -> ty
+    | NIL : ty
+    | INT : ty
+    | STRING : ty
+    | ARRAY : ty -> Unique.t -> ty
+    | NAME : symbol -> ty
+    | UNIT : ty
   with rfield : Set :=
-  | mk_rfield : symbol -> ty -> rfield.
+    | mk_rfield : symbol -> ty -> rfield.
 
   Definition rf_name (rf : rfield) := let (name, _) := rf in name.
   Definition rf_type (rf : rfield) := let (_, type) := rf in type.
@@ -149,10 +149,20 @@ Module Types.
   Definition ty_compat (t1 t2 : ty) : bool :=
     if ty_dec t1 t2 then true
     else match t1, t2 with
+    | RECORD _ u1, RECORD _ u2 => if Unique.unique_dec u1 u2 then true else false
     | RECORD fs u, NIL => true
     | NIL, RECORD fs u => true
     | _, _ => false
     end.
+
+  Lemma ty_compat_refl : forall t,
+    ty_compat t t = true.
+  Proof.
+    destruct t; unfold ty_compat;
+    match goal with
+    | [ |- (if ?X then _ else _) = _ ] => destruct X; congruence
+    end.
+  Qed.
 
   Lemma ty_compat_sym : forall t1 t2,
     ty_compat t1 t2 = ty_compat t2 t1.
@@ -166,23 +176,76 @@ Module Types.
         try (inversion H2; reflexivity);
         try (unfold ty_compat; rewrite EQ1; rewrite EQ2; reflexivity)
     end.
+    unfold ty_compat. repeat destruct ty_dec; try discriminate.
+    destruct (Unique.unique_dec t t0); destruct (Unique.unique_dec t0 t); congruence.
   Qed.
 
-  Fixpoint actual_ty (t : ty) : option ty :=
-    match t with
-    | NAME _ oty => match oty with
-        | None => None
-        | Some ty => actual_ty ty
+  Lemma ty_compat_simpl_eq : forall t1 t2 (*t u*),
+    t2 = Types.INT \/ t2 = Types.STRING \/ t2 = Types.UNIT ->
+    Types.ty_compat t1 t2 = true ->
+    t1 = t2.
+  Proof.
+    intros; destruct H as [H | [H | H]]; destruct t2; try discriminate;
+    destruct t1; try discriminate; try reflexivity.
+  Qed.
+
+  (* Might still return a Name, may need to just add a depth and say error if nested deeper than that *)
+  Definition max_depth := 100.
+
+  Fixpoint actual_ty' (d : nat) (te : @Symbol.table ty) (t : ty) : option ty :=
+    match d with
+    | 0 => None
+    | S d' => match t with
+        | NAME n => match Symbol.look te n with
+            | None => None
+            | Some t => actual_ty' d' te t
+            end
+        | _ => Some t
         end
-    | _ => Some t
     end.
 
-  Lemma actual_not_name : forall t n oty,
-    actual_ty t <> Some (NAME n oty).
+  Definition actual_ty te t := actual_ty' max_depth te t.
+
+  Fixpoint actual_tys (te : @Symbol.table ty) (ts : list ty) : option (list ty) :=
+    match ts with
+    | nil => Some nil
+    | t :: ts' => match actual_ty te t with
+        | None => None
+        | Some t' => option_map (cons t') (actual_tys te ts')
+        end
+    end.
+
+  Lemma actual_not_name' : forall te t n d,
+    actual_ty' d te t <> Some (NAME n).
   Proof.
-    fix 1.
-    destruct t; try discriminate.
-    destruct o; [simpl; apply actual_not_name | discriminate].
+    intros; destruct t;
+    try solve [destruct te, d; simpl; discriminate].
+    generalize dependent s; induction d; intros.
+    - discriminate.
+    - simpl. destruct (Symbol.look te s); try discriminate.
+      destruct t; try solve [destruct te, d; simpl; try discriminate].
+      apply IHd.
+  Qed.
+
+  Lemma actual_not_name : forall te t n,
+    actual_ty te t <> Some (NAME n).
+  Proof.
+    intros; unfold actual_ty; apply actual_not_name'.
+  Qed.
+
+  Lemma actual_tys_no_none : forall te ts,
+    In None (map (actual_ty te) ts) <->
+    actual_tys te ts = None.
+  Proof.
+    split; intros.
+    - induction ts; inversion H.
+      + simpl; rewrite H0; reflexivity.
+      + simpl. apply IHts in H0; rewrite H0.
+        destruct (actual_ty te a); reflexivity.
+    - induction ts; inversion H.
+      destruct (actual_ty te a) eqn:?; simpl.
+      + right; apply IHts; destruct (actual_tys te ts); [discriminate | reflexivity].
+      + left; assumption.
   Qed.
 
 End Types.

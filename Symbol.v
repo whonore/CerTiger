@@ -101,6 +101,9 @@ Module Symbol <: SYMBOL.
                                  else look tbl' sym
       end.
 
+    Definition enter_all (tbl : table) (svs : list (t * A)) :=
+      fold_left (fun t sv => enter t (fst sv) (snd sv)) svs tbl.
+
     Lemma empty_look : forall s,
       look empty s = None.
     Proof. reflexivity. Qed.
