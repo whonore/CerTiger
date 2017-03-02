@@ -1,3 +1,4 @@
+Require Import Arith.
 Require Import List.
 
 Require Import Absyn.
@@ -8,6 +9,7 @@ Require Import Types.
 
 Definition tenv := @Symbol.table Types.ty.
 Definition venv := @Symbol.table Env.enventry.
+Definition ros := @Symbol.table unit.
 
 Module Translate.
   Definition exp := unit.
@@ -20,10 +22,29 @@ Record expty := {
 
 Record composite_env := {
   te : tenv;
-  ve : venv
+  ve : venv;
+  ro : ros; (* read-only variables *)
+  ll : nat (* loop-level *)
 }.
 
+Definition base_cenv : composite_env :=
+  {| ve := Env.base_venv; te := Env.base_tenv; ro := Symbol.empty; ll := 0 |}.
+
+Definition update_te (ce : composite_env) (te : tenv) :=
+  {| te := te; ve := ve ce; ro := ro ce; ll := ll ce |}.
+
+Definition update_ve (ce : composite_env) (ve : venv) :=
+  {| te := te ce; ve := ve; ro := ro ce; ll := ll ce |}.
+
+Definition update_ro (ce : composite_env) (ro : ros) :=
+  {| te := te ce; ve := ve ce; ro := ro; ll := ll ce |}.
+
+Definition incr_ll (ce : composite_env) :=
+  {| te := te ce; ve := ve ce; ro := ro ce; ll := S (ll ce) |}.
+
 Section HELPERS.
+
+(* Some of these should be moved elsewhere *)
 
 Definition mk_expty ty := {| exp := tt; ty := ty |}.
 Definition tmp : @res (expty * Types.upool) := ERR.
@@ -127,6 +148,13 @@ Definition getOpType f :=
   | EqOp | NeqOp => Eq
   end.
 
+Fixpoint getVarName v :=
+  match v with
+  | SimpleVar n => n
+  | FieldVar v _ => getVarName v
+  | SubscriptVar v _ => getVarName v
+  end.
+
 End HELPERS.
 
 Section TYPE_CHECK.
@@ -174,8 +202,8 @@ Definition transTy (te : tenv) (us : Types.upool) (tree : Absyn.ty) : @res (Type
                     OK (Types.ARRAY ty u, us')
   end.
 
-Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @res (expty * Types.upool) :=
-  match tree with
+Fixpoint transExp (ce : composite_env) (us : Types.upool) (exp : Absyn.exp) : @res (expty * Types.upool) :=
+  match exp with
   | VarExp v => transVar ce us v
   | NilExp => OK (mk_expty Types.NIL, us)
   | IntExp _ => OK (mk_expty Types.INT, us)
@@ -207,7 +235,10 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
   | AssignExp l r => do (vty, us') <- transVar ce us l;
                      do (ety, us'') <- transExp ce us' r;
                      check Types.ty_compat (ty vty) (ty ety);
-                     OK (mk_expty Types.UNIT, us'')
+                     match Symbol.look (ro ce) (getVarName l) with
+                     | None => OK (mk_expty Types.UNIT, us'')
+                     | _ => ERR
+                     end
   | IfExp p t (Some e) => do (pty, us') <- transExp ce us p;
                           do (tty, us'') <- transExp ce us' t;
                           do (ety, us''') <- transExp ce us'' e;
@@ -220,18 +251,21 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
                       check Types.ty_compat (ty tty) Types.UNIT;
                       OK (mk_expty Types.UNIT, us'')
   | WhileExp g b => do (gty, us') <- transExp ce us g;
-                    do (bty, us'') <- transExp ce us' b;
+                    do (bty, us'') <- transExp (incr_ll ce) us' b;
                     check Types.ty_compat (ty gty) Types.INT;
                     check Types.ty_compat (ty bty) Types.UNIT;
                     OK (mk_expty Types.UNIT, us'')
-  | ForExp _ lo hi b => do (loty, us') <- transExp ce us lo;
+  | ForExp v lo hi b => do (loty, us') <- transExp ce us lo;
                         do (hity, us'') <- transExp ce us' hi;
-                        do (bty, us''') <- transExp ce us'' b;
                         check Types.ty_compat (ty loty) Types.INT;
                         check Types.ty_compat (ty hity) Types.INT;
+                        let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT) in
+                        let ro' := Symbol.enter (ro ce) (vd_name v) tt in
+                        do (bty, us''') <- transExp (incr_ll (update_ve (update_ro ce ro') ve')) us'' b;
                         check Types.ty_compat (ty bty) Types.UNIT;
                         OK (mk_expty Types.UNIT, us''')
-  | BreakExp => OK (mk_expty Types.UNIT, us)
+  | BreakExp => check leb 1 (ll ce);
+                OK (mk_expty Types.UNIT, us)
   | LetExp decs b => tmp (* tmp *)
   | ArrayExp aty sz init => do arrty <- lift (Symbol.look (te ce) aty);
                             do (szty, us') <- transExp ce us sz;
@@ -243,15 +277,15 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (tree : Absyn.exp) : @
                             | _ => ERR
                             end
   end
-with transExplist (ce : composite_env) (us : Types.upool) (trees : Absyn.explist) :  @res (list expty * Types.upool) :=
-  match trees with
+with transExplist (ce : composite_env) (us : Types.upool) (exps : Absyn.explist) :  @res (list expty * Types.upool) :=
+  match exps with
   | ENil => OK (nil, us)
   | ECons e es => do (ety, us') <- transExp ce us e;
                   do (etys, us'') <- transExplist ce us' es;
                   OK (ety :: etys, us'')
   end
-with transVar (ce : composite_env) (us : Types.upool) (tree : Absyn.var) : @res (expty * Types.upool) :=
-  match tree with
+with transVar (ce : composite_env) (us : Types.upool) (var : Absyn.var) : @res (expty * Types.upool) :=
+  match var with
   | SimpleVar name => do entry <- lift (Symbol.look (ve ce) name);
                       match entry with
                       | Env.VarEntry ty => do ty' <- lift (Types.actual_ty ty);
@@ -275,19 +309,20 @@ with transVar (ce : composite_env) (us : Types.upool) (tree : Absyn.var) : @res 
                           | _ => ERR
                           end
   end
-with transDec (ce : composite_env) (us : Types.upool) (tree : Absyn.dec) : @res (composite_env * Types.upool) :=
-  match tree with
+with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
+  match dec with
   | FunctionDec decs => OK (ce, us) (* tmp *)
   | VarDec v ty val => OK (ce, us) (* tmp *)
   | TypeDec decs => OK (ce, us) (* tmp *)
   end
-with transDeclist (ce : composite_env) (us : Types.upool) (trees : list Absyn.dec) {struct trees} : @res (composite_env * Types.upool) :=
-  match trees with
-  | nil => OK (ce, us)
-  | d :: ds => OK (ce, us)
+with transDeclist (ce : composite_env) (us : Types.upool) (decs : declist) : @res (composite_env * Types.upool) :=
+  match decs with
+  | DNil => OK (ce, us)
+  | DCons d ds => do (ce', us') <- transDec ce us d;
+                  do (ce'', us'') <- transDeclist ce' us' ds;
+                  OK (ce'', us'')
   end.
 
-Definition base_cenv : composite_env := {| ve := Env.base_venv; te := Env.base_tenv |}.
 Definition transProg (tree : Absyn.exp) := transExp base_cenv Types.uinit tree.
 
 End TYPE_CHECK.
@@ -371,6 +406,7 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
       wt_var ce us v vty us' ->
       wt_exp ce us' e ety us'' ->
       Types.ty_compat vty ety = true ->
+      Symbol.look (ro ce) (getVarName v) = None ->
       wt_exp ce us (AssignExp v e) Types.UNIT us''
   | wt_ifthenelseexp : forall p t e tty ety us' us'' us''',
       wt_exp ce us p Types.INT us' ->
@@ -384,15 +420,18 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
       wt_exp ce us (IfExp p t None) Types.UNIT us''
   | wt_whileexp : forall g b us' us'',
       wt_exp ce us g Types.INT us' ->
-      wt_exp ce us' b Types.UNIT us'' ->
+      wt_exp (incr_ll ce) us' b Types.UNIT us'' ->
       wt_exp ce us (WhileExp g b) Types.UNIT us''
-  | wt_forexp : forall v lo hi b us' us'' us''', (* need to add v to ce? *)
+  | wt_forexp : forall v lo hi b us' us'' us''' ve' ro',
       wt_exp ce us lo Types.INT us' ->
       wt_exp ce us' hi Types.INT us'' ->
-      wt_exp ce us'' b Types.UNIT us''' ->
+      Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT) = ve' ->
+      Symbol.enter (ro ce) (vd_name v) tt = ro' ->
+      wt_exp (incr_ll (update_ve (update_ro ce ro') ve')) us'' b Types.UNIT us''' ->
       wt_exp ce us (ForExp v lo hi b) Types.UNIT us'''
   | wt_breakexp :
-      wt_exp ce us BreakExp Types.UNIT us (* must be in loop *)
+      0 < ll ce ->
+      wt_exp ce us BreakExp Types.UNIT us
   | wt_letexp : forall decs e ty ce' us' us'',
       wt_declist ce us decs ce' us' ->
       wt_exp ce' us' e ty us'' ->
@@ -433,26 +472,26 @@ with wt_dec (ce : composite_env) (us : Types.upool) : Absyn.dec -> composite_env
       wt_exp ce us e ety us' ->
       ety <> Types.NIL ->
       Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ety) = ve' ->
-      wt_dec ce us (VarDec v None e) {| ve := ve'; te := (te ce) |} us'
+      wt_dec ce us (VarDec v None e) (update_ve ce ve') us'
   | wt_vardec_ty : forall v e tyname ty ty' ve' us',
       Symbol.look (te ce) tyname = Some ty ->
       Types.actual_ty ty = Some ty' ->
       wt_exp ce us e ty' us' ->
       Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ty') = ve' ->
-      wt_dec ce us (VarDec v (Some tyname) e) {| ve := ve'; te := (te ce) |} us'
+      wt_dec ce us (VarDec v (Some tyname) e) (update_ve ce ve') us'
   | wt_tydec : forall tys us', (* tmp *)
       wt_dec ce us (TypeDec tys) ce us'
-with wt_declist (ce : composite_env) (us : Types.upool) : list Absyn.dec -> composite_env -> Types.upool -> Prop :=
+with wt_declist (ce : composite_env) (us : Types.upool) : declist -> composite_env -> Types.upool -> Prop :=
   | wt_dnil :
-      wt_declist ce us nil ce us
+      wt_declist ce us DNil ce us
   | wt_dcons : forall d ds ce' ce'' us' us'',
       wt_dec ce us d ce' us' ->
       wt_declist ce' us' ds ce'' us'' ->
-      wt_declist ce us (d :: ds) ce'' us''.
+      wt_declist ce us (DCons d ds) ce'' us''.
 
 Inductive wt_prog : Absyn.exp -> Types.ty -> Types.upool -> Set :=
   | wt_prog_exp : forall p ty us',
-      wt_exp {| ve := Env.base_venv; te := Env.base_tenv |} Types.uinit p ty us' ->
+      wt_exp base_cenv Types.uinit p ty us' ->
       wt_prog p ty us'.
 
 Lemma transOp_sound : forall l r f ety,
@@ -535,6 +574,7 @@ Proof.
       apply transVar_sound; eassumption.
       apply transExp_sound; eassumption.
       eassumption.
+      eassumption.
     + destruct o; monadInv H.
       { econstructor.
         - apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
@@ -549,8 +589,14 @@ Proof.
     + monadInv H; econstructor.
       apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
       apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
-    + admit.
+    + monadInv H; econstructor.
+      apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
+      apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
+      reflexivity.
+      reflexivity.
+      apply transExp_sound in EQ4; destruct (ty x3); try discriminate; eassumption.
     + monadInv H; constructor.
+      unfold lt; fold (leb 1 (ll ce)) in EQ; apply leb_complete; assumption.
     + admit.
     + monadInv H; econstructor.
       eauto using lift_option.
@@ -587,7 +633,9 @@ Proof.
     + admit.
   - destruct ds; intros.
     + inversion H; constructor.
-    + admit.
+    + monadInv H; econstructor.
+      apply transDec_sound; eassumption.
+      apply transDeclist_sound; eassumption.
 Qed.
 
 Theorem transProg_sound : forall p ety us',

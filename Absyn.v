@@ -27,7 +27,7 @@ Definition tf_name (tf : tfield) := let (name, _) := tf in name.
 Definition tf_typ (tf : tfield) := let (_, typ) := tf in typ.
 
 (* In order to satisfy Coq's termination checker later on, explist must be used instead of list exp
-   in some places. *)
+   in some places. Same with declist *)
 
 Inductive var : Set :=
   | SimpleVar : symbol -> var
@@ -47,7 +47,7 @@ with exp : Set :=
   | WhileExp : exp -> exp -> exp
   | ForExp : vardec -> exp -> exp -> exp -> exp
   | BreakExp : exp
-  | LetExp : list dec -> exp -> exp
+  | LetExp : declist -> exp -> exp
   | ArrayExp : symbol -> exp -> exp -> exp
 with explist : Set :=
   | ENil : explist
@@ -56,6 +56,9 @@ with dec : Set :=
   | FunctionDec : list fundec -> dec
   | VarDec : vardec -> option symbol -> exp -> dec
   | TypeDec : list tydec -> dec
+with declist : Set :=
+  | DNil : declist
+  | DCons : dec -> declist -> declist
 with vardec : Set :=
   | mk_vardec : symbol -> bool -> vardec
 with formals : Set :=
