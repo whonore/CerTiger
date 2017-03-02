@@ -244,7 +244,7 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (exp : Absyn.exp) : @r
                           do (ety, us''') <- transExp ce us'' e;
                           check Types.ty_compat (ty pty) Types.INT;
                           check Types.ty_compat (ty tty) (ty ety);
-                          OK (mk_expty (ty tty), us''')
+                          OK (tty, us''')
   | IfExp p t None => do (pty, us') <- transExp ce us p;
                       do (tty, us'') <- transExp ce us' t;
                       check Types.ty_compat (ty pty) Types.INT;
@@ -266,7 +266,9 @@ Fixpoint transExp (ce : composite_env) (us : Types.upool) (exp : Absyn.exp) : @r
                         OK (mk_expty Types.UNIT, us''')
   | BreakExp => check leb 1 (ll ce);
                 OK (mk_expty Types.UNIT, us)
-  | LetExp decs b => tmp (* tmp *)
+  | LetExp decs b => do (ce', us') <- transDeclist ce us decs;
+                     do (bty, us'') <- transExp ce' us' b;
+                     OK (bty, us'')
   | ArrayExp aty sz init => do arrty <- lift (Symbol.look (te ce) aty);
                             do (szty, us') <- transExp ce us sz;
                             do (initty, us'') <- transExp ce us' init;
@@ -312,7 +314,18 @@ with transVar (ce : composite_env) (us : Types.upool) (var : Absyn.var) : @res (
 with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
   match dec with
   | FunctionDec decs => OK (ce, us) (* tmp *)
-  | VarDec v ty val => OK (ce, us) (* tmp *)
+  | VarDec v None val => do (valty, us') <- transExp ce us val;
+                         match ty valty with
+                         | Types.NIL => ERR
+                         | _ => let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry (ty valty)) in
+                                OK (update_ve ce ve', us')
+                         end
+  | VarDec v (Some tyname) val => do (valty, us') <- transExp ce us val;
+                                  do vty <- lift (Symbol.look (te ce) tyname);
+                                  do vty' <- lift (Types.actual_ty vty);
+                                  check Types.ty_compat (ty valty) vty';
+                                  let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry (ty valty)) in
+                                  OK (update_ve ce ve', us')
   | TypeDec decs => OK (ce, us) (* tmp *)
   end
 with transDeclist (ce : composite_env) (us : Types.upool) (decs : declist) : @res (composite_env * Types.upool) :=
@@ -435,7 +448,7 @@ Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty
   | wt_letexp : forall decs e ty ce' us' us'',
       wt_declist ce us decs ce' us' ->
       wt_exp ce' us' e ty us'' ->
-      wt_exp ce us (LetExp decs e) ty us'
+      wt_exp ce us (LetExp decs e) ty us''
   | wt_arrexp : forall aty ty ty' sz init initty u us' us'',
       Symbol.look (te ce) aty = Some ty ->
       Types.actual_ty ty = Some (Types.ARRAY ty' u) ->
@@ -473,11 +486,12 @@ with wt_dec (ce : composite_env) (us : Types.upool) : Absyn.dec -> composite_env
       ety <> Types.NIL ->
       Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ety) = ve' ->
       wt_dec ce us (VarDec v None e) (update_ve ce ve') us'
-  | wt_vardec_ty : forall v e tyname ty ty' ve' us',
+  | wt_vardec_ty : forall v e tyname ty ty' ety ve' us',
       Symbol.look (te ce) tyname = Some ty ->
       Types.actual_ty ty = Some ty' ->
-      wt_exp ce us e ty' us' ->
-      Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ty') = ve' ->
+      wt_exp ce us e ety us' ->
+      Types.ty_compat ety ty' = true ->
+      Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ety) = ve' ->
       wt_dec ce us (VarDec v (Some tyname) e) (update_ve ce ve') us'
   | wt_tydec : forall tys us', (* tmp *)
       wt_dec ce us (TypeDec tys) ce us'
@@ -510,9 +524,7 @@ Lemma transFields_sound : forall te us fs tys,
   transFields te us fs = OK tys ->
   wt_fields te us fs tys.
 Proof.
-  induction fs; intros; monadInv H; constructor.
-  - apply lift_option in EQ; assumption.
-  - apply IHfs; assumption.
+  induction fs; intros; monadInv H; constructor; auto using lift_option.
 Qed.
 
 Lemma transTy_sound : forall te us abty ty us',
@@ -521,12 +533,6 @@ Lemma transTy_sound : forall te us abty ty us',
 Proof.
   destruct abty; intros; monadInv H; constructor; auto using lift_option, transFields_sound.
 Qed.
-
-Lemma transExp_not_name : forall ce us e ety us' n oty,
-  transExp ce us e = OK (ety, us') ->
-  ty ety <> Types.NAME n oty.
-Proof.
-Admitted.
 
 Theorem transExp_sound : forall ce us e ety us',
   transExp ce us e = OK (ety, us') ->
@@ -544,74 +550,40 @@ with transDeclist_sound : forall ce us ds ce' us',
   transDeclist ce us ds = OK (ce', us') ->
   wt_declist ce us ds ce' us'.
 Proof.
-  - destruct e; intros.
-    + simpl in H; constructor; apply transVar_sound; assumption.
-    + monadInv H; constructor.
-    + monadInv H; constructor.
-    + monadInv H; constructor.
-    + monadInv H; econstructor; eauto using lift_option.
-    + monadInv H; econstructor.
-      apply transExp_sound; eassumption.
-      apply transExp_sound; eassumption.
-      apply transOp_sound; eassumption.
-    + monadInv H.
-      econstructor; try eassumption.
-      eauto using lift_option. eauto using lift_option.
-      apply transExplist_sound; apply EQ3.
+  - destruct e; intros;
+    try solve [monadInv H; econstructor; eauto using lift_option, transOp_sound].
+    + simpl in H; constructor; auto.
     + monadInv H; destruct e.
       * monadInv EQ; econstructor; [econstructor | reflexivity].
       * monadInv EQ; econstructor.
-        econstructor.
-        apply transExp_sound; eassumption.
-        apply transExplist_sound; eassumption.
+        econstructor; eauto.
         assert (Htymap : forall xs d, ty (last xs d) = last (map ty xs) (ty d)).
         { induction xs.
           - reflexivity.
           - intros; simpl; rewrite <- IHxs; destruct xs; reflexivity.
         }
         apply Htymap.
-    + monadInv H; econstructor.
-      apply transVar_sound; eassumption.
-      apply transExp_sound; eassumption.
-      eassumption.
-      eassumption.
     + destruct o; monadInv H.
-      { econstructor.
-        - apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
-        - simpl; apply transExp_sound; eassumption.
-        - simpl; apply transExp_sound; eassumption.
-        - eassumption.
-      }
-      { econstructor.
-        - apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
-        - apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
-      }
-    + monadInv H; econstructor.
+      * econstructor; eauto.
+        apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
+      * econstructor.
+        apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
+        apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
+    + monadInv H; econstructor. (* Should make a tactic or lemma for this pattern *)
       apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
       apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
-    + monadInv H; econstructor.
+    + monadInv H; econstructor; eauto.
       apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
       apply transExp_sound in EQ1; destruct (ty x1); try discriminate; eassumption.
-      reflexivity.
-      reflexivity.
       apply transExp_sound in EQ4; destruct (ty x3); try discriminate; eassumption.
     + monadInv H; constructor.
-      unfold lt; fold (leb 1 (ll ce)) in EQ; apply leb_complete; assumption.
-    + admit.
-    + monadInv H; econstructor.
-      eauto using lift_option.
-      reflexivity.
+      unfold lt; fold (leb 1 (ll ce)) in EQ; auto using leb_complete.
+    + monadInv H; econstructor; eauto using lift_option, Types.ty_compat_sym. (* should make a hint database *)
       apply transExp_sound in EQ1; destruct (ty x0); try discriminate; eassumption.
-      apply transExp_sound. eassumption.
-      rewrite Types.ty_compat_sym; eassumption.
-  - destruct es; intros.
-    + inversion H; constructor.
-    + monadInv H; econstructor.
-      apply transExp_sound; eassumption.
-      apply transExplist_sound; eassumption.
+  - destruct es; intros; monadInv H; econstructor; eauto.
   - destruct v; intros.
     + monadInv H; econstructor; eauto using lift_option.
-    + monadInv H; econstructor.
+    + monadInv H; econstructor; eauto using lift_option.
       apply transVar_sound in EQ; rewrite HEQ in EQ; eassumption.
       { apply lift_option in EQ1.
         pose proof EQ1.
@@ -622,27 +594,54 @@ Proof.
         fold (Types.rf_name x1).
         rewrite Symbol.eq_sym; apply H.
       }
-      eauto using lift_option.
-    + monadInv H; econstructor.
+    + monadInv H; econstructor; eauto using lift_option.
       apply transExp_sound in EQ; destruct (ty x); try discriminate; eassumption.
-      apply transVar_sound in EQ1. rewrite HEQ in EQ1; eassumption.
-      auto using lift_option.
+      apply transVar_sound in EQ1; rewrite HEQ in EQ1; eassumption.
   - destruct d; intros.
-    + admit.
-    + admit.
-    + admit.
-  - destruct ds; intros.
-    + inversion H; constructor.
-    + monadInv H; econstructor.
-      apply transDec_sound; eassumption.
-      apply transDeclist_sound; eassumption.
+    + monadInv H; constructor. (* tmp *)
+    + destruct o.
+      * monadInv H; econstructor; eauto using lift_option.
+      * monadInv H; econstructor; eauto; subst; congruence.
+    + monadInv H; constructor. (* tmp *)
+  - destruct ds; intros; monadInv H; econstructor; eauto.
 Qed.
 
 Theorem transProg_sound : forall p ety us',
   transProg p = OK (ety, us') ->
-  wt_prog p (ty ety).
+  wt_prog p (ty ety) us'.
 Proof.
-  unfold transProg; eapply transExp_sound; eassumption.
+  unfold transProg; constructor; auto using transExp_sound.
 Qed.
+
+Theorem transExp_complete : forall ce us e ety us',
+  wt_exp ce us e (ty ety) us' ->
+  transExp ce us e = OK (ety, us')
+with transExplist_complete : forall ce us es etys us',
+  wt_explist ce us es (map ty etys) us' ->
+  transExplist ce us es = OK (etys, us')
+with transVar_complete : forall ce us v ety us',
+  wt_var ce us v (ty ety) us' ->
+  transVar ce us v = OK (ety, us')
+with transDec_complete : forall ce us d ce' us',
+  wt_dec ce us d ce' us' ->
+  transDec ce us d = OK (ce', us')
+with transDeclist_complete : forall ce us ds ce' us',
+  wt_declist ce us ds ce' us' ->
+  transDeclist ce us ds = OK (ce', us').
+Proof.
+Admitted.
+
+Theorem transProg_complete : forall p ety us',
+  wt_prog p (ty ety) us' ->
+  transProg p = OK (ety, us').
+Proof.
+  intros; unfold transProg; inversion H; auto using transExp_complete.
+Qed.
+
+Lemma transExp_not_name : forall ce us e ety us' n oty,
+  transExp ce us e = OK (ety, us') ->
+  ty ety <> Types.NAME n oty.
+Proof.
+Admitted.
 
 End TYPE_SPEC.
