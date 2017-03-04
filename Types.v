@@ -180,13 +180,31 @@ Module Types.
     destruct (Unique.unique_dec t t0); destruct (Unique.unique_dec t0 t); congruence.
   Qed.
 
-  Lemma ty_compat_simpl_eq : forall t1 t2 (*t u*),
+  Lemma ty_compat_simpl_eq : forall t1 t2,
     t2 = Types.INT \/ t2 = Types.STRING \/ t2 = Types.UNIT ->
     Types.ty_compat t1 t2 = true ->
     t1 = t2.
   Proof.
     intros; destruct H as [H | [H | H]]; destruct t2; try discriminate;
     destruct t1; try discriminate; try reflexivity.
+  Qed.
+
+  Lemma ty_compat_arr : forall t1 t2 aty u,
+    t2 = Types.ARRAY aty u ->
+    Types.ty_compat t1 t2 = true ->
+    t1 = t2.
+  Proof.
+    intros; destruct t2; try discriminate; destruct t1; try discriminate;
+    unfold ty_compat in H0; destruct (ty_dec (ARRAY t1 t0) (ARRAY t2 t)); congruence.
+  Qed.
+
+  Lemma ty_compat_rec : forall fs1 fs2 u1 u2,
+    Types.ty_compat (Types.RECORD fs1 u1) (Types.RECORD fs2 u2) = true ->
+    u1 = u2.
+  Proof.
+    intros; unfold ty_compat in H;
+    destruct (ty_dec (RECORD fs1 u1) (RECORD fs2 u2));
+    destruct (Unique.unique_dec u1 u2); congruence.
   Qed.
 
   (* actual_ty might return another Name, but with the possibility of infinite cycles need to add a max depth *)

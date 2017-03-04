@@ -47,7 +47,6 @@ Section HELPERS.
   (* Some of these should be moved elsewhere *)
 
   Definition mk_expty ty := {| exp := tt; ty := ty |}.
-  Definition tmp : @res (expty * Types.upool) := ERR.
 
   Fixpoint list_eq {A} (eq : A -> A -> bool) (xs1 xs2 : list A) : bool :=
     match xs1, xs2 with
@@ -188,6 +187,10 @@ Section TYPE_CHECK.
           | Types.STRING => OK (mk_expty Types.INT)
           | Types.RECORD _ _ => OK (mk_expty Types.INT)
           | Types.ARRAY _ _ => OK (mk_expty Types.INT)
+          | Types.NIL => match rty with
+              | Types.RECORD _ _ => OK (mk_expty Types.INT)
+              | _ => ERR
+              end
           | _ => ERR
         end
       end
@@ -201,8 +204,8 @@ Section TYPE_CHECK.
                   OK (fty :: ftys)
     end.
 
-  Definition transTy (te : tenv) (us : Types.upool) (tree : Absyn.ty) : @res (Types.ty * Types.upool) :=
-    match tree with
+  Definition transTy (te : tenv) (us : Types.upool) (aty : Absyn.ty) : @res (Types.ty * Types.upool) :=
+    match aty with
     | NameTy name => do ty <- lift (Symbol.look te name);
                      OK (ty, us)
     | RecordTy fields => do ftys <- transFields te us (map tf_typ fields);
@@ -395,8 +398,8 @@ Section TYPE_CHECK.
   with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
     match dec with
     | FunctionDec decs bodies => do ce' <- transFundecHeads ce decs;
-                                do us' <- transFundecs ce' us decs bodies;
-                                OK (ce', us')
+                                 do us' <- transFundecs ce' us decs bodies;
+                                 OK (ce', us')
     | VarDec v None val => do (valty, us') <- transExp ce us val;
                            do valty' <- lift (Types.actual_ty (te ce) (ty valty));
                            match valty' with
@@ -727,14 +730,9 @@ Section SOUNDNESS.
     transOp l r f = OK ety ->
     wt_op l r f (ty ety).
   Proof.
-    destruct f; intros; unfold transOp in H; simpl in H;
-    destruct (Types.ty_compat l r) eqn:?; try discriminate;
-    destruct l; inversion H;
-    destruct r; try discriminate;
-    try constructor;
-    try (unfold Types.ty_compat in Heqb; destruct Types.ty_dec; try discriminate; inversion e; constructor).
-    unfold Types.ty_compat in Heqb; destruct Types.ty_dec; try discriminate. inversion e. constructor.
-    destruct (Unique.unique_dec t t0); try discriminate. subst. constructor.
+    destruct f; intros; monadInv H; try (destruct r; try discriminate); try solve [constructor].
+    apply Types.ty_compat_rec in EQ; subst; constructor.
+    eapply Types.ty_compat_arr in EQ; eauto; inversion EQ; constructor.
   Qed.
   Local Hint Resolve transOp_sound.
 
