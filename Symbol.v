@@ -81,6 +81,8 @@ Module Symbol <: SYMBOL.
   Definition symbol' name tbl := fst (symbol name tbl).
   Definition symbolT name tbl := snd (symbol name tbl).
 
+  Definition make_syms names : sym_tbl := fold_right symbolT sym_empty names.
+
   Definition name (sym : t) := fst sym.
 
   Section TABLE.

@@ -45,6 +45,12 @@ Section RESMONAD.
     | Some x => OK x
     end.
 
+  Definition as_bool {A} (r : @res A) : bool :=
+    match r with
+    | ERR => false
+    | OK _ => true
+    end.
+
 End RESMONAD.
 
 Section MONADFACTS.

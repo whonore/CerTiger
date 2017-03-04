@@ -30,10 +30,10 @@ Module Env <: ENV.
   Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
     Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).
 
-  Definition tsyms : Symbol.sym_tbl := fold_right Symbol.symbolT Symbol.sym_empty
+  Definition tsyms : Symbol.sym_tbl := Symbol.make_syms
     ("int" :: "string" :: nil)%string.
 
-  Definition vsyms : Symbol.sym_tbl := fold_right Symbol.symbolT Symbol.sym_empty
+  Definition vsyms : Symbol.sym_tbl := Symbol.make_syms
     ("print" :: "flush" :: "getchar" :: "ord" :: "chr" :: "size" :: "substring"
      :: "concat" :: "not" :: "exit" :: nil)%string.
 

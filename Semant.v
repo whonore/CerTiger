@@ -155,6 +155,18 @@ Section HELPERS.
     | SubscriptVar v _ => getVarName v
     end.
 
+  (* Nestings of NAME greater than Types.max_depth are treated as cycles to remove issue of
+     possible non-termination. Since actual_ty already implements this, just check that it
+     doesn't return failure *)
+  Fixpoint no_cycles (te : tenv) (ts : list Symbol.t) : bool :=
+    match ts with
+    | nil => true
+    | n :: ts' => as_bool (
+        check no_cycles te ts';
+        do ty <- lift (Symbol.look te n);
+        lift (Types.actual_ty te ty))
+    end.
+
 End HELPERS.
 
 Section TYPE_CHECK.
@@ -217,6 +229,35 @@ Section TYPE_CHECK.
                       transTydecs te' us' decs'
     end.
 
+  Fixpoint transFormalsHeads (te : tenv) (fs : list Absyn.formals) : @res (list Types.ty) :=
+    match fs with
+    | nil => OK nil
+    | f :: fs' => do fty <- lift (Symbol.look te (form_typ f));
+                  do ftys <- transFormalsHeads te fs';
+                  OK (fty :: ftys)
+    end.
+
+  Fixpoint transFormals (ve : venv) (fs : list Absyn.formals) (ftys : list Types.ty) : @res venv :=
+    match fs, ftys with
+    | nil, nil => OK ve
+    | f :: fs', fty :: ftys' => let ve' := Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry fty) in
+                                transFormals ve' fs' ftys'
+    | _, _ => ERR
+    end.
+
+  Fixpoint transFundecHeads (ce : composite_env) (fds : list Absyn.fundec) : @res composite_env :=
+    match fds with
+    | nil => OK ce
+    | fd :: fds' => check sym_nodup (map (fun p => vd_name (form_var p)) (fd_params fd));
+                    do formtys <- transFormalsHeads (te ce) (fd_params fd);
+                    do rty' <- match fd_result fd with
+                               | None => OK Types.UNIT
+                               | Some rty => lift (Symbol.look (te ce) rty)
+                               end;
+                    let ve' := Symbol.enter (ve ce) (fd_name fd) (Env.FunEntry formtys rty') in
+                    transFundecHeads (update_ve ce ve') fds'
+    end.
+
   Fixpoint transExp (ce : composite_env) (us : Types.upool) (exp : Absyn.exp) : @res (expty * Types.upool) :=
     match exp with
     | VarExp v => transVar ce us v
@@ -270,7 +311,7 @@ Section TYPE_CHECK.
                             do ety' <- lift (Types.actual_ty (te ce) (ty ety));
                             check Types.ty_compat pty' Types.INT;
                             check Types.ty_compat tty' ety';
-                            OK (tty, us''')
+                            OK (mk_expty (Types.most_general tty' ety'), us''')
     | IfExp p t None => do (pty, us') <- transExp ce us p;
                         do (tty, us'') <- transExp ce us' t;
                         do pty' <- lift (Types.actual_ty (te ce) (ty pty));
@@ -353,7 +394,9 @@ Section TYPE_CHECK.
     end
   with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
     match dec with
-    | FunctionDec decs => OK (ce, us) (* tmp *)
+    | FunctionDec decs bodies => do ce' <- transFundecHeads ce decs;
+                                do us' <- transFundecs ce' us decs bodies;
+                                OK (ce', us')
     | VarDec v None val => do (valty, us') <- transExp ce us val;
                            do valty' <- lift (Types.actual_ty (te ce) (ty valty));
                            match valty' with
@@ -370,6 +413,7 @@ Section TYPE_CHECK.
                                     OK (update_ve ce ve', us')
     | TypeDec decs => do te' <- transTydecHeads (te ce) decs;
                       do (te'', us') <- transTydecs te' us decs;
+                      check no_cycles te'' (map td_name decs);
                       OK (update_te ce te'', us')
     end
   with transDeclist (ce : composite_env) (us : Types.upool) (decs : declist) : @res (composite_env * Types.upool) :=
@@ -378,6 +422,22 @@ Section TYPE_CHECK.
     | DCons d ds => do (ce', us') <- transDec ce us d;
                     do (ce'', us'') <- transDeclist ce' us' ds;
                     OK (ce'', us'')
+    end
+  with transFundecs (ce : composite_env) (us : Types.upool) (fds : list Absyn.fundec) (bs : Absyn.explist) : @res Types.upool :=
+    match fds, bs with
+    | nil, ENil => OK us
+    | fd :: fds', ECons b bs' => do entry <- lift (Symbol.look (ve ce) (fd_name fd));
+                                 match entry with
+                                 | Env.FunEntry formtys rty =>
+                                     do ve' <- transFormals (ve ce) (fd_params fd) formtys;
+                                     do (bty, us') <- transExp (update_ve ce ve') us b;
+                                     do rty' <- lift (Types.actual_ty (te ce) rty);
+                                     do bty' <- lift (Types.actual_ty (te ce) (ty bty));
+                                     check Types.ty_compat rty' bty';
+                                     transFundecs ce us' fds' bs'
+                                 | _ => ERR
+                                 end
+    | _, _ => ERR
     end.
 
   Definition transProg (tree : Absyn.exp) := transExp base_cenv Types.uinit tree.
@@ -445,6 +505,39 @@ Section TYPE_SPEC.
         wt_tydecs te' us' tds te'' us'' ->
         wt_tydecs te us (td :: tds) te'' us''.
 
+  Inductive wt_formals_heads (te : tenv) : list Absyn.formals -> list Types.ty -> Prop :=
+    | wt_formhd_nil :
+        wt_formals_heads te nil nil
+    | wt_formhd_cons : forall f fs ty tys,
+        Symbol.look te (form_typ f) = Some ty ->
+        wt_formals_heads te fs tys ->
+        wt_formals_heads te (f :: fs) (ty :: tys).
+
+  Inductive wt_formals (ve : venv) : list Absyn.formals -> list Types.ty -> venv -> Prop :=
+    | wt_form_nil :
+        wt_formals ve nil nil ve
+    | wt_form_cons : forall f fs ty tys ve' ve'',
+        Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry ty) = ve' ->
+        wt_formals ve' fs tys ve'' ->
+        wt_formals ve (f :: fs) (ty :: tys) ve''.
+
+  Inductive wt_fundec_heads (ce : composite_env) : list Absyn.fundec -> composite_env -> Prop :=
+    | wt_fdh_nil :
+        wt_fundec_heads ce nil ce
+    | wt_fdh_noty : forall name params fds formtys ve' ce',
+        sym_nodup (map (fun p => vd_name (form_var p)) params) = true ->
+        wt_formals_heads (te ce) params formtys ->
+        Symbol.enter (ve ce) name (Env.FunEntry formtys Types.UNIT) = ve' ->
+        wt_fundec_heads (update_ve ce ve') fds ce' ->
+        wt_fundec_heads ce ((mk_fundec name params None) :: fds) ce'
+    | wt_fdh_cons : forall name params fds formtys rty rty' ve' ce',
+        sym_nodup (map (fun p => vd_name (form_var p)) params) = true ->
+        wt_formals_heads (te ce) params formtys ->
+        Symbol.look (te ce) rty = Some rty' ->
+        Symbol.enter (ve ce) name (Env.FunEntry formtys rty') = ve' ->
+        wt_fundec_heads (update_ve ce ve') fds ce' ->
+        wt_fundec_heads ce ((mk_fundec name params (Some rty)) :: fds) ce'.
+
   (* Some of the actual_ty calls may be redundant, but to be safe there should be one before any ty_compat *)
   Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
     | wt_varexp : forall v ty us',
@@ -498,8 +591,8 @@ Section TYPE_SPEC.
         Types.actual_ty (te ce) pty = Some Types.INT ->
         Types.actual_ty (te ce) tty = Some tty' ->
         Types.actual_ty (te ce) ety = Some ety' ->
-        Types.ty_compat tty' ety' = true -> (* should return whichever of tty and ety is not nil if possible *)
-        wt_exp ce us (IfExp p t (Some e)) tty us'''
+        Types.ty_compat tty' ety' = true ->
+        wt_exp ce us (IfExp p t (Some e)) (Types.most_general tty' ety') us'''
     | wt_ifthenexp : forall p t pty tty us' us'',
         wt_exp ce us p pty us' ->
         wt_exp ce us' t tty us'' ->
@@ -565,8 +658,10 @@ Section TYPE_SPEC.
         Types.actual_ty (te ce) ty = Some ty' ->
         wt_var ce us (SubscriptVar v idx) ty' us''
   with wt_dec (ce : composite_env) (us : Types.upool) : Absyn.dec -> composite_env -> Types.upool -> Prop :=
-    | wt_fundec : forall fs, (* tmp *)
-        wt_dec ce us (FunctionDec fs) ce us
+    | wt_fundec : forall fs bs ce' us',
+        wt_fundec_heads ce fs ce' ->
+        wt_fundecs ce' us fs bs us' ->
+        wt_dec ce us (FunctionDec fs bs) ce' us'
     | wt_vardec_noty : forall v e ety ety' ve' us',
         wt_exp ce us e ety us' ->
         Types.actual_ty (te ce) ety = Some ety' ->
@@ -584,7 +679,7 @@ Section TYPE_SPEC.
     | wt_tydec : forall tds te' te'' us',
         wt_tydec_heads (te ce) tds te' ->
         wt_tydecs te' us tds te'' us' ->
-        (* check for cycles *)
+        no_cycles te'' (map td_name tds) = true ->
         wt_dec ce us (TypeDec tds) (update_te ce te'') us'
   with wt_declist (ce : composite_env) (us : Types.upool) : declist -> composite_env -> Types.upool -> Prop :=
     | wt_dnil :
@@ -592,7 +687,19 @@ Section TYPE_SPEC.
     | wt_dcons : forall d ds ce' ce'' us' us'',
         wt_dec ce us d ce' us' ->
         wt_declist ce' us' ds ce'' us'' ->
-        wt_declist ce us (DCons d ds) ce'' us''.
+        wt_declist ce us (DCons d ds) ce'' us''
+  with wt_fundecs (ce : composite_env) (us : Types.upool) : list Absyn.fundec -> Absyn.explist -> Types.upool -> Prop :=
+    | wt_fd_nil :
+        wt_fundecs ce us nil ENil us
+    | wt_fd_cons : forall fd fds b bs formtys rty rty' bty bty' us' us'' ve',
+        Symbol.look (ve ce) (fd_name fd) = Some (Env.FunEntry formtys rty) ->
+        wt_formals (ve ce) (fd_params fd) formtys ve' ->
+        wt_exp (update_ve ce ve') us b bty us' ->
+        Types.actual_ty (te ce) rty = Some rty' ->
+        Types.actual_ty (te ce) bty = Some bty' ->
+        Types.ty_compat rty' bty' = true ->
+        wt_fundecs ce us' fds bs us'' ->
+        wt_fundecs ce us (fd :: fds) (ECons b bs) us''.
 
   Inductive wt_prog : Absyn.exp -> Types.ty -> Types.upool -> Set :=
     | wt_prog_exp : forall p ty us',
@@ -629,7 +736,6 @@ Section SOUNDNESS.
     unfold Types.ty_compat in Heqb; destruct Types.ty_dec; try discriminate. inversion e. constructor.
     destruct (Unique.unique_dec t t0); try discriminate. subst. constructor.
   Qed.
-
   Local Hint Resolve transOp_sound.
 
   Lemma transFields_sound : forall te us fs tys,
@@ -638,7 +744,6 @@ Section SOUNDNESS.
   Proof.
     induction fs; intros; sound_solve H.
   Qed.
-
   Local Hint Resolve transFields_sound.
 
   Lemma transTy_sound : forall te us abty ty us',
@@ -647,7 +752,6 @@ Section SOUNDNESS.
   Proof.
     destruct abty; intros; sound_solve H.
   Qed.
-
   Local Hint Resolve transTy_sound.
 
   Lemma transTydecHeads_sound : forall te tds te',
@@ -656,7 +760,6 @@ Section SOUNDNESS.
   Proof.
     intros; generalize dependent te0; induction tds; intros; [sound_solve H | econstructor; eauto].
   Qed.
-
   Local Hint Resolve transTydecHeads_sound.
 
   Lemma transTydecs_sound : forall te us tds te' us',
@@ -665,8 +768,31 @@ Section SOUNDNESS.
   Proof.
     intros; generalize dependent te0; generalize dependent us; induction tds; intros; sound_solve H.
   Qed.
-
   Local Hint Resolve transTydecs_sound.
+
+  Lemma transFormalsHeads_sound : forall te fs tys,
+    transFormalsHeads te fs = OK tys ->
+    wt_formals_heads te fs tys.
+  Proof.
+    induction fs; intros; sound_solve H.
+  Qed.
+  Local Hint Resolve transFormalsHeads_sound.
+
+  Lemma transFormals_sound : forall ve fs ftys ve',
+    transFormals ve fs ftys = OK ve' ->
+    wt_formals ve fs ftys ve'.
+  Proof.
+    intros; generalize dependent ftys; generalize dependent ve0; induction fs; intros; sound_solve H.
+  Qed.
+  Local Hint Resolve transFormals_sound.
+
+  Lemma transFundecHeads_sound : forall ce fds ce',
+    transFundecHeads ce fds = OK ce' ->
+    wt_fundec_heads ce fds ce'.
+  Proof.
+    intros; generalize dependent ce; induction fds; intros; try (destruct a; destruct o); sound_solve H.
+  Qed.
+  Local Hint Resolve transFundecHeads_sound.
 
   Theorem transExp_sound : forall ce us e ety us',
     transExp ce us e = OK (ety, us') ->
@@ -682,7 +808,10 @@ Section SOUNDNESS.
     wt_dec ce us d ce' us'
   with transDeclist_sound : forall ce us ds ce' us',
     transDeclist ce us ds = OK (ce', us') ->
-    wt_declist ce us ds ce' us'.
+    wt_declist ce us ds ce' us'
+  with transFundecs_sound : forall ce us fds bs us',
+    transFundecs ce us fds bs = OK us' ->
+    wt_fundecs ce us fds bs us'.
   Proof.
     - destruct e; intros; try solve [sound_solve H].
       + simpl in H; constructor; auto.
@@ -712,10 +841,11 @@ Section SOUNDNESS.
           rewrite Symbol.eq_sym; assumption.
         }
     - destruct d; intros.
-      + monadInv H; constructor. (* tmp *)
+      + sound_solve H.
       + destruct o; monadInv H; econstructor; eauto; congruence.
       + sound_solve H.
     - destruct ds; intros; sound_solve H.
+    - destruct bs; intros; sound_solve H.
   Qed.
 
   Local Hint Resolve transExp_sound.

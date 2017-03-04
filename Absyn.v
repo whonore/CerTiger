@@ -53,7 +53,7 @@ with explist : Set :=
   | ENil : explist
   | ECons : exp -> explist -> explist
 with dec : Set :=
-  | FunctionDec : list fundec -> dec
+  | FunctionDec : list fundec -> explist -> dec (* assume 1st and 2nd args have same length *)
   | VarDec : vardec -> option symbol -> exp -> dec
   | TypeDec : list tydec -> dec
 with declist : Set :=
@@ -64,7 +64,7 @@ with vardec : Set :=
 with formals : Set :=
   | mk_formals : vardec -> symbol -> formals
 with fundec : Set :=
-  | mk_fundec : symbol -> list formals -> option symbol -> exp -> fundec
+  | mk_fundec : symbol -> list formals -> option symbol -> fundec
 with tydec : Set :=
   | mk_tydec : symbol -> ty -> tydec.
 
@@ -74,10 +74,9 @@ Definition vd_escape (vd : vardec) := let (_, escape) := vd in escape.
 Definition form_var (form : formals) := let (var, _) := form in var.
 Definition form_typ (form : formals) := let (_, typ) := form in typ.
 
-Definition fd_name (fd : fundec) := let (name, _, _, _) := fd in name.
-Definition fd_params (fd : fundec) := let (_, params, _, _) := fd in params.
-Definition fd_result (fd : fundec) := let (_, _, result, _) := fd in result.
-Definition fd_body (fd : fundec) := let (_, _, _, body) := fd in body.
+Definition fd_name (fd : fundec) := let (name, _, _) := fd in name.
+Definition fd_params (fd : fundec) := let (_, params, _) := fd in params.
+Definition fd_result (fd : fundec) := let (_, _, result) := fd in result.
 
 Definition td_name (td : tydec) := let (name, _) := td in name.
 Definition td_ty (td : tydec) := let (_, ty) := td in ty.

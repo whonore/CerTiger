@@ -189,7 +189,7 @@ Module Types.
     destruct t1; try discriminate; try reflexivity.
   Qed.
 
-  (* Might still return a Name, may need to just add a depth and say error if nested deeper than that *)
+  (* actual_ty might return another Name, but with the possibility of infinite cycles need to add a max depth *)
   Definition max_depth := 100.
 
   Fixpoint actual_ty' (d : nat) (te : @Symbol.table ty) (t : ty) : option ty :=
@@ -247,5 +247,13 @@ Module Types.
       + right; apply IHts; destruct (actual_tys te ts); [discriminate | reflexivity].
       + left; assumption.
   Qed.
+
+  (* Return record if the other is nil *)
+  Definition most_general (t1 t2 : ty) :=
+    match t1, t2 with
+    | RECORD _ _, NIL => t1
+    | NIL, RECORD _ _ => t2
+    | _, _ => t1
+    end.
 
 End Types.
