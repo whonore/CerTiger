@@ -1,6 +1,5 @@
 Require Import Arith.
 Require Import List.
-Require Import String.
 
 Module Type SYMBOL.
 
@@ -10,8 +9,8 @@ Module Type SYMBOL.
   Parameter sym_tbl : Set.
   Parameter sym_empty : sym_tbl.
 
-  Parameter symbol : string -> sym_tbl -> t * sym_tbl.
-  Parameter name : t -> string.
+  Parameter symbol : nat -> sym_tbl -> t * sym_tbl.
+  Parameter name : t -> nat.
 
   Section TABLE.
 
@@ -28,9 +27,9 @@ End SYMBOL.
 
 Module Symbol <: SYMBOL.
 
-  Definition t := (string * nat)%type.
+  Definition t := nat.
 
-  Definition eq (s1 s2 : t) := beq_nat (snd s1) (snd s2).
+  Definition eq (s1 s2 : t) := beq_nat s1 s2.
 
   (* This should probably be done with typeclasses or something cleaner *)
 
@@ -43,8 +42,7 @@ Module Symbol <: SYMBOL.
   Lemma eq_sym : forall s1 s2,
     eq s1 s2 = eq s2 s1.
   Proof.
-    unfold eq; destruct s1, s2; simpl;
-    generalize dependent n0; induction n; destruct n0; simpl; auto.
+    unfold eq; induction s1; destruct s2; simpl; auto.
   Qed.
 
   Lemma eq_trans : forall s1 s2 s3,
@@ -52,38 +50,30 @@ Module Symbol <: SYMBOL.
     eq s2 s3 = true ->
     eq s1 s3 = true.
   Proof.
-    unfold eq; intros; destruct s1, s2, s3; simpl in *.
-    generalize dependent n1; generalize dependent n0.
-    induction n; intros; destruct n0, n1; auto.
-    discriminate.
-    eapply IHn; eauto.
+    induction s1; destruct s2, s3; simpl; auto. discriminate. eauto.
   Qed.
 
   Definition sym_tbl := list t.
   Definition sym_empty : sym_tbl := nil.
-  Fixpoint sym_find (tbl : sym_tbl) name :=
+  Fixpoint sym_find (tbl : sym_tbl) n :=
     match tbl with
     | nil => None
-    | (s, n) :: tbl' => if string_dec s name
-                            then Some n
-                            else sym_find tbl' name
+    | n' :: tbl' => if eq n n' then Some n else sym_find tbl' n
     end.
 
-  Definition next_sym (tbl : sym_tbl) :=
-    S (fold_left (fun m s => max m (snd s)) tbl 0).
-
-  Definition symbol (name : string) tbl : t * sym_tbl :=
-    match sym_find tbl name with
-    | None => let num := next_sym tbl in ((name, num), (name, num) :: tbl)
-    | Some n => ((name, n), tbl)
+  Definition symbol (n : nat) tbl : t * sym_tbl :=
+    match sym_find tbl n with
+    | None => (n, n :: tbl)
+    | Some sym => (sym, tbl)
     end.
 
   Definition symbol' name tbl := fst (symbol name tbl).
   Definition symbolT name tbl := snd (symbol name tbl).
 
-  Definition make_syms names : sym_tbl := fold_right symbolT sym_empty names.
+  Definition add_syms tbl names : sym_tbl := fold_right symbolT tbl names.
+  Definition make_syms names : sym_tbl := add_syms sym_empty names.
 
-  Definition name (sym : t) := fst sym.
+  Definition name (sym : t) := sym.
 
   Section TABLE.
 

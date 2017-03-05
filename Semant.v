@@ -704,7 +704,7 @@ Section TYPE_SPEC.
         wt_fundecs ce us' fds bs us'' ->
         wt_fundecs ce us (fd :: fds) (ECons b bs) us''.
 
-  Inductive wt_prog : Absyn.exp -> Types.ty -> Types.upool -> Set :=
+  Inductive wt_prog : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
     | wt_prog_exp : forall p ty us',
         wt_exp base_cenv Types.uinit p ty us' ->
         wt_prog p ty us'.
