@@ -86,3 +86,147 @@ Module EX3 <: EX.
         E[AssignExp (FieldVar (SimpleVar s_rec1) s_name) (StringExp "Someboy");
           VarExp (SimpleVar s_rec1)]).
 End EX3.
+
+Module EX4 <: EX.
+  (* let
+       function nfactor(n: int) : int =
+         if  n = 0
+           then 1
+           else n * nfactor(n - 1)
+         in
+           nfactor(10)
+         end *)
+  Definition s_nfactor := sy 20.
+  Definition s_n := sy 21.
+
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [mk_fundec s_nfactor [mk_formals (mk_vardec s_n true) Env.s_int] (Some Env.s_int)]
+                    E[IfExp (OpExp (VarExp (SimpleVar s_n)) EqOp (IntExp 0))
+                            (IntExp 1)
+                            (Some (OpExp (VarExp (SimpleVar s_n)) TimesOp
+                                          (AppExp s_nfactor E[OpExp (VarExp (SimpleVar s_n)) MinusOp (IntExp 1)])))]]
+      (SeqExp E[AppExp s_nfactor E[IntExp 10]]).
+End EX4.
+
+Module EX5 <: EX.
+  (* let
+       type intlist = {hd : int, tl : intlist}
+       type tree = {key : int, children : treelist}
+       type treelist = {hd : tree, tl : treelist}
+       var lis : intlist := intlist {hd=0, tl=nil}
+     in
+	lis
+     end *)
+  Definition s_intlist := sy 20.
+  Definition s_hd := sy 21.
+  Definition s_tl := sy 22.
+  Definition s_tree := sy 23.
+  Definition s_key := sy 24.
+  Definition s_children := sy 25.
+  Definition s_treelist := sy 26.
+  Definition s_lis := sy 27.
+
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [mk_tydec s_intlist (RecordTy [mk_tfield s_hd Env.s_int;
+                                               mk_tfield s_tl s_intlist]);
+                 mk_tydec s_tree (RecordTy [mk_tfield s_key Env.s_int;
+                                            mk_tfield s_children s_treelist]);
+                 mk_tydec s_treelist (RecordTy [mk_tfield s_hd s_tree;
+                                                mk_tfield s_tl s_treelist])];
+        VarDec (mk_vardec s_lis true) (Some s_intlist) (RecordExp E[IntExp 0; NilExp]
+                                                                  [s_hd; s_tl]
+                                                                  s_intlist)]
+      (SeqExp E[VarExp (SimpleVar s_lis)]).
+End EX5.
+
+Module EX6 <: EX.
+  (* let
+       function do_nothing1(a : int, b : string) = do_nothing2(a + 1)
+       function do_nothing2(d : int) = do_nothing1(d, "str")
+     in
+       do_nothing1(0, "str2")
+     end *)
+  Definition s_do_nothing1 := sy 20.
+  Definition s_a := sy 21.
+  Definition s_b := sy 22.
+  Definition s_do_nothing2 := sy 23.
+  Definition s_d := sy 24.
+
+  Definition ex : exp :=
+  LetExp
+    D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
+                                            mk_formals (mk_vardec s_b true) Env.s_string]
+                                           None;
+                   mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
+                                           None]
+                  E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
+                                           AppExp s_do_nothing1 E[VarExp (SimpleVar s_d);
+                                                                  StringExp "str"]]]
+    (SeqExp E[AppExp s_do_nothing1 E[IntExp 0; StringExp "str2"]]).
+End EX6.
+
+Module EX7 <: EX.
+  (* let
+       function do_nothing1(a : int, b : string) : int = (do_nothing2(a + 1); 0)
+       function do_nothing2(d : int) : string = (do_nothing1(d, "str"); " ")
+     in
+       do_nothing1(0, "str2")
+     end *)
+  Definition s_do_nothing1 := sy 20.
+  Definition s_a := sy 21.
+  Definition s_b := sy 22.
+  Definition s_do_nothing2 := sy 23.
+  Definition s_d := sy 24.
+
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
+                                              mk_formals (mk_vardec s_b true) Env.s_string]
+                                             (Some Env.s_int);
+                     mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
+                                             (Some Env.s_string)]
+                    E[SeqExp E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
+                               IntExp 0];
+                      SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_d); StringExp "str"];
+                               StringExp " "]]]
+      (SeqExp E[AppExp s_do_nothing1 E[IntExp 0; StringExp "str2"]]).
+End EX7.
+
+Module EX8 <: EX.
+  (* if (10 > 20) then 30 else 40 *)
+
+  Definition ex : exp :=
+    IfExp (OpExp (IntExp 10) GtOp (IntExp 20))
+          (IntExp 30)
+          (Some (IntExp 40)).
+End EX8.
+
+Module EX9 <: EX.
+  (* Error *)
+  (* if (5>4) then 13 else  " " *)
+
+  Definition ex : exp :=
+    IfExp (OpExp (IntExp 5) GtOp (IntExp 4))
+          (IntExp 13)
+          (Some (StringExp " ")).
+End EX9.
+
+Module EX10 <: EX.
+  (* Error *)
+  (* while(10 > 5) do 5 + 6 *)
+
+  Definition ex : exp :=
+    WhileExp (OpExp (IntExp 10) GtOp (IntExp 5)) (OpExp (IntExp 5) PlusOp (IntExp 6)).
+End EX10.
+
+Module EX11 <: EX.
+  (* Error *)
+  (* for i := 10 to " " do i := i - 1 *)
+  Definition s_i := sy 20.
+
+  Definition ex : exp :=
+    ForExp (mk_vardec s_i true) (IntExp 10) (StringExp " ")
+           (AssignExp (SimpleVar s_i) (OpExp (VarExp (SimpleVar s_i)) MinusOp (IntExp 1))).
+End EX11.
