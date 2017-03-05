@@ -9,8 +9,12 @@ Module Type ENV.
   Parameter access : Type.
   Parameter ty : Set.
 
+  Inductive rw : Set :=
+    | RO : rw
+    | RW : rw.
+
   Inductive enventry : Set :=
-    | VarEntry : ty -> enventry
+    | VarEntry : ty -> rw -> enventry
     | FunEntry : list ty -> ty -> enventry.
 
   Parameter base_tenv : @Symbol.table ty.
@@ -23,8 +27,12 @@ Module Env <: ENV.
   Parameter access : Type.
   Definition ty := Types.ty.
 
+  Inductive rw : Set :=
+    | RO : rw
+    | RW : rw.
+
   Inductive enventry : Set :=
-    | VarEntry : ty -> enventry
+    | VarEntry : ty -> rw -> enventry
     | FunEntry : list ty -> ty -> enventry.
 
   Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=

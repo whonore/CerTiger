@@ -9,7 +9,6 @@ Require Import Types.
 
 Definition tenv := @Symbol.table Types.ty.
 Definition venv := @Symbol.table Env.enventry.
-Definition ros := @Symbol.table unit.
 
 Module Translate.
   Definition exp := unit.
@@ -23,24 +22,23 @@ Record expty := {
 Record composite_env := {
   te : tenv;
   ve : venv;
-  ro : ros; (* read-only variables *)
   ll : nat (* loop-level *)
 }.
 
 Definition base_cenv : composite_env :=
-  {| ve := Env.base_venv; te := Env.base_tenv; ro := Symbol.empty; ll := 0 |}.
+  {| ve := Env.base_venv; te := Env.base_tenv; ll := 0 |}.
 
 Definition update_te (ce : composite_env) (te : tenv) :=
-  {| te := te; ve := ve ce; ro := ro ce; ll := ll ce |}.
+  {| te := te; ve := ve ce; ll := ll ce |}.
 
 Definition update_ve (ce : composite_env) (ve : venv) :=
-  {| te := te ce; ve := ve; ro := ro ce; ll := ll ce |}.
-
-Definition update_ro (ce : composite_env) (ro : ros) :=
-  {| te := te ce; ve := ve ce; ro := ro; ll := ll ce |}.
+  {| te := te ce; ve := ve; ll := ll ce |}.
 
 Definition incr_ll (ce : composite_env) :=
-  {| te := te ce; ve := ve ce; ro := ro ce; ll := S (ll ce) |}.
+  {| te := te ce; ve := ve ce; ll := S (ll ce) |}.
+
+Definition reset_ll (ce : composite_env) :=
+  {| te := te ce; ve := ve ce; ll := 0 |}.
 
 Section HELPERS.
 
@@ -243,7 +241,7 @@ Section TYPE_CHECK.
   Fixpoint transFormals (ve : venv) (fs : list Absyn.formals) (ftys : list Types.ty) : @res venv :=
     match fs, ftys with
     | nil, nil => OK ve
-    | f :: fs', fty :: ftys' => let ve' := Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry fty) in
+    | f :: fs', fty :: ftys' => let ve' := Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry fty Env.RW) in
                                 transFormals ve' fs' ftys'
     | _, _ => ERR
     end.
@@ -302,8 +300,8 @@ Section TYPE_CHECK.
                        do vty' <- lift (Types.actual_ty (te ce) (ty vty));
                        do ety' <- lift (Types.actual_ty (te ce) (ty ety));
                        check Types.ty_compat vty' ety';
-                       match Symbol.look (ro ce) (getVarName l) with
-                       | None => OK (mk_expty Types.UNIT, us'')
+                       match Symbol.look (ve ce) (getVarName l) with
+                       | Some (Env.VarEntry _ Env.RW) => OK (mk_expty Types.UNIT, us'')
                        | _ => ERR
                        end
     | IfExp p t (Some e) => do (pty, us') <- transExp ce us p;
@@ -335,9 +333,8 @@ Section TYPE_CHECK.
                           do hity' <- lift (Types.actual_ty (te ce) (ty hity));
                           check Types.ty_compat loty' Types.INT;
                           check Types.ty_compat hity' Types.INT;
-                          let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT) in
-                          let ro' := Symbol.enter (ro ce) (vd_name v) tt in
-                          do (bty, us''') <- transExp (incr_ll (update_ve (update_ro ce ro') ve')) us'' b;
+                          let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT Env.RO) in
+                          do (bty, us''') <- transExp (incr_ll (update_ve ce ve')) us'' b;
                           do bty' <- lift (Types.actual_ty (te ce) (ty bty));
                           check Types.ty_compat bty' Types.UNIT;
                           OK (mk_expty Types.UNIT, us''')
@@ -371,8 +368,8 @@ Section TYPE_CHECK.
     match var with
     | SimpleVar name => do entry <- lift (Symbol.look (ve ce) name);
                         match entry with
-                        | Env.VarEntry ty => do ty' <- lift (Types.actual_ty (te ce) ty);
-                                             OK (mk_expty ty', us)
+                        | Env.VarEntry ty _ => do ty' <- lift (Types.actual_ty (te ce) ty);
+                                               OK (mk_expty ty', us)
                         | _ => ERR
                         end
     | FieldVar v field => do (vty, us') <- transVar ce us v;
@@ -397,14 +394,15 @@ Section TYPE_CHECK.
     end
   with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
     match dec with
-    | FunctionDec decs bodies => do ce' <- transFundecHeads ce decs;
+    | FunctionDec decs bodies => check sym_nodup (map fd_name decs);
+                                 do ce' <- transFundecHeads ce decs;
                                  do us' <- transFundecs ce' us decs bodies;
                                  OK (ce', us')
     | VarDec v None val => do (valty, us') <- transExp ce us val;
                            do valty' <- lift (Types.actual_ty (te ce) (ty valty));
                            match valty' with
                            | Types.NIL => ERR
-                           | _ => let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry (ty valty)) in
+                           | _ => let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry (ty valty) Env.RW) in
                                   OK (update_ve ce ve', us')
                            end
     | VarDec v (Some tyname) val => do (valty, us') <- transExp ce us val;
@@ -412,9 +410,10 @@ Section TYPE_CHECK.
                                     do vty' <- lift (Types.actual_ty (te ce) vty);
                                     do valty' <- lift (Types.actual_ty (te ce) (ty valty));
                                     check Types.ty_compat valty' vty';
-                                    let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry vty) in
+                                    let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry vty Env.RW) in
                                     OK (update_ve ce ve', us')
-    | TypeDec decs => do te' <- transTydecHeads (te ce) decs;
+    | TypeDec decs => check sym_nodup (map td_name decs);
+                      do te' <- transTydecHeads (te ce) decs;
                       do (te'', us') <- transTydecs te' us decs;
                       check no_cycles te'' (map td_name decs);
                       OK (update_te ce te'', us')
@@ -433,7 +432,7 @@ Section TYPE_CHECK.
                                  match entry with
                                  | Env.FunEntry formtys rty =>
                                      do ve' <- transFormals (ve ce) (fd_params fd) formtys;
-                                     do (bty, us') <- transExp (update_ve ce ve') us b;
+                                     do (bty, us') <- transExp (reset_ll (update_ve ce ve')) us b;
                                      do rty' <- lift (Types.actual_ty (te ce) rty);
                                      do bty' <- lift (Types.actual_ty (te ce) (ty bty));
                                      check Types.ty_compat rty' bty';
@@ -520,7 +519,7 @@ Section TYPE_SPEC.
     | wt_form_nil :
         wt_formals ve nil nil ve
     | wt_form_cons : forall f fs ty tys ve' ve'',
-        Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry ty) = ve' ->
+        Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry ty Env.RW) = ve' ->
         wt_formals ve' fs tys ve'' ->
         wt_formals ve (f :: fs) (ty :: tys) ve''.
 
@@ -579,13 +578,13 @@ Section TYPE_SPEC.
         wt_explist ce us es tys us' ->
         ty = last tys Types.UNIT ->
         wt_exp ce us (SeqExp es) ty us'
-    | wt_assignexp : forall v e vty ety vty' ety' us' us'',
+    | wt_assignexp : forall v e vty ety vty' ety' us' us'' ty,
         wt_var ce us v vty us' ->
         wt_exp ce us' e ety us'' ->
         Types.actual_ty (te ce) vty = Some vty' ->
         Types.actual_ty (te ce) ety = Some ety' ->
         Types.ty_compat vty' ety' = true ->
-        Symbol.look (ro ce) (getVarName v) = None ->
+        Symbol.look (ve ce) (getVarName v) = Some (Env.VarEntry ty Env.RW) ->
         wt_exp ce us (AssignExp v e) Types.UNIT us''
     | wt_ifthenelseexp : forall p t e pty tty ety tty' ety' us' us'' us''',
         wt_exp ce us p pty us' ->
@@ -608,14 +607,13 @@ Section TYPE_SPEC.
         Types.actual_ty (te ce) gty = Some Types.INT ->
         Types.actual_ty (te ce) bty = Some Types.UNIT ->
         wt_exp ce us (WhileExp g b) Types.UNIT us''
-    | wt_forexp : forall v lo hi loty hity b bty us' us'' us''' ve' ro',
+    | wt_forexp : forall v lo hi loty hity b bty us' us'' us''' ve',
         wt_exp ce us lo loty us' ->
         wt_exp ce us' hi hity us'' ->
         Types.actual_ty (te ce) loty = Some Types.INT ->
         Types.actual_ty (te ce) hity = Some Types.INT ->
-        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT) = ve' ->
-        Symbol.enter (ro ce) (vd_name v) tt = ro' ->
-        wt_exp (incr_ll (update_ve (update_ro ce ro') ve')) us'' b bty us''' ->
+        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry Types.INT Env.RO) = ve' ->
+        wt_exp (incr_ll (update_ve ce ve')) us'' b bty us''' ->
         Types.actual_ty (te ce) bty = Some Types.UNIT ->
         wt_exp ce us (ForExp v lo hi b) Types.UNIT us'''
     | wt_breakexp :
@@ -643,8 +641,8 @@ Section TYPE_SPEC.
         wt_explist ce us' es tys us'' ->
         wt_explist ce us (ECons e es) (ty :: tys) us''
   with wt_var (ce : composite_env) (us : Types.upool) : Absyn.var -> Types.ty -> Types.upool -> Prop :=
-    | wt_svar : forall n ty ty',
-        Symbol.look (ve ce) n = Some (Env.VarEntry ty) ->
+    | wt_svar : forall n ty ty' rw,
+        Symbol.look (ve ce) n = Some (Env.VarEntry ty rw) ->
         Types.actual_ty (te ce) ty = Some ty' ->
         wt_var ce us (SimpleVar n) ty' us
     | wt_fvar : forall v vty f fs u ty ty' us',
@@ -662,6 +660,7 @@ Section TYPE_SPEC.
         wt_var ce us (SubscriptVar v idx) ty' us''
   with wt_dec (ce : composite_env) (us : Types.upool) : Absyn.dec -> composite_env -> Types.upool -> Prop :=
     | wt_fundec : forall fs bs ce' us',
+        sym_nodup (map fd_name fs) = true ->
         wt_fundec_heads ce fs ce' ->
         wt_fundecs ce' us fs bs us' ->
         wt_dec ce us (FunctionDec fs bs) ce' us'
@@ -669,7 +668,7 @@ Section TYPE_SPEC.
         wt_exp ce us e ety us' ->
         Types.actual_ty (te ce) ety = Some ety' ->
         ety' <> Types.NIL ->
-        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ety) = ve' ->
+        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ety Env.RW) = ve' ->
         wt_dec ce us (VarDec v None e) (update_ve ce ve') us'
     | wt_vardec_ty : forall v e tyname ty ty' ety ety' ve' us',
         Symbol.look (te ce) tyname = Some ty ->
@@ -677,9 +676,10 @@ Section TYPE_SPEC.
         Types.actual_ty (te ce) ty = Some ty' ->
         Types.actual_ty (te ce) ety = Some ety' ->
         Types.ty_compat ety' ty' = true ->
-        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ty) = ve' ->
+        Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ty Env.RW) = ve' ->
         wt_dec ce us (VarDec v (Some tyname) e) (update_ve ce ve') us'
     | wt_tydec : forall tds te' te'' us',
+        sym_nodup (map td_name tds) = true ->
         wt_tydec_heads (te ce) tds te' ->
         wt_tydecs te' us tds te'' us' ->
         no_cycles te'' (map td_name tds) = true ->
@@ -697,7 +697,7 @@ Section TYPE_SPEC.
     | wt_fd_cons : forall fd fds b bs formtys rty rty' bty bty' us' us'' ve',
         Symbol.look (ve ce) (fd_name fd) = Some (Env.FunEntry formtys rty) ->
         wt_formals (ve ce) (fd_params fd) formtys ve' ->
-        wt_exp (update_ve ce ve') us b bty us' ->
+        wt_exp (reset_ll (update_ve ce ve')) us b bty us' ->
         Types.actual_ty (te ce) rty = Some rty' ->
         Types.actual_ty (te ce) bty = Some bty' ->
         Types.ty_compat rty' bty' = true ->
