@@ -1,35 +1,45 @@
-CC=coqc
+DIRS=frontend util checks
 
-all: Semant.vo
+COQOPTS=-q -noglob
+COQINCLUDES=$(foreach d, $(DIRS), -I $(d))
 
-.PHONY: checks
-checks: all
-	$(MAKE) -C checks
+COQC=coqc $(COQINCLUDES) $(COQOPTS)
+COQDEP=coqdep $(COQINCLUDES)
 
-Symbol.vo: Symbol.v
-	$(CC) Symbol.v
+UTIL=util/Errors.v
 
-Absyn.vo: Absyn.v Symbol.vo
-	$(CC) Absyn.v
+FRONTEND=frontend/Absyn.v \
+		 frontend/Env.v \
+		 frontend/Semant.v \
+		 frontend/Symbol.v \
+		 frontend/Types.v
 
-Types.vo: Types.v Symbol.vo
-	$(CC) Types.v
+CHECKS=checks/Examples.v checks/SemantChecks.v
 
-Env.vo: Env.v Symbol.vo Types.vo
-	$(CC) Env.v
+PROOF=$(FRONTEND) $(UTIL)
+FILES=$(FRONTEND) $(UTIL) $(CHECKS)
 
-Errors.vo: Errors.v
-	$(CC) Errors.v
+all:
+	@test -f .depend || $(MAKE) depend
+	@$(MAKE) proof
 
-Semant.vo: Semant.v Absyn.vo Errors.vo Env.vo Symbol.vo Types.vo
-	$(CC) Semant.v
+proof: $(PROOF:.v=.vo)
 
-Examples.vo: Examples.v Absyn.vo Env.vo Symbol.vo
-	$(CC) Examples.v
+checks: $(CHECKS:.v=.vo)
 
-SemantSanity.vo: SemantSanity.v Absyn.vo Examples.vo Semant.vo Types.vo
-	$(CC) SemantSanity.v
+%.vo: %.v
+	@echo "COQC $*.v"
+	@$(COQC) $*.v
+
+depend: $(FILES)
+	@echo "Checking dependencies"
+	@$(COQDEP) $^ > .depend
 
 clean:
-	rm -f *.vo *.glob
-	$(MAKE) -C checks clean
+	rm -f $(patsubst %, %/*.vo, $(DIRS))
+	rm -f .depend
+
+check-admits: $(FILES)
+	@grep -w 'admit\|Admitted\|ADMITTED' $^ | echo "No admits."
+
+-include .depend
