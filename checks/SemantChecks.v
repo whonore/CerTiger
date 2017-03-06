@@ -1,7 +1,7 @@
-(* 
+(*
  * SemantChecks.v
  * Wolf Honore
- * 
+ *
  * Tests to ensure that the typing semantics defined in Semant.v
  * match the informal semantics described in the book.
  *)
@@ -23,7 +23,7 @@ Section TypeDec_CHECKS.
 
   Ltac inv H := inversion H; subst; clear H.
   Ltac inv_all :=
-    repeat match goal with
+    match goal with
     | [ H : Some _ = None |- _ ] => inv H
     | [ H : None = Some _ |- _ ] => inv H
     | [ H : Some _ = Some _ |- _ ] => inv H
@@ -42,13 +42,25 @@ Section TypeDec_CHECKS.
     | [ H : wt_declist _ _ _ _ _ |- _ ] => inv H
     | [ H : wt_fundecs _ _ _ _ _  |- _ ] => inv H
     | [ H : wt_prog _ _ _ |- _ ] => inv H
-    | [ H : Types.actual_ty _ _ = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : (_, _) = Types.unew _ |- _ ] => inv H
+    | [ H : Types.actual_ty _ Types.INT = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ Types.STRING = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ Types.NIL = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ Types.UNIT = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ (Types.ARRAY _ _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ (Types.RECORD _ _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
+    | [ H : Types.actual_ty _ (Types.NAME _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
     end; simpl in *; try discriminate.
+
+  Ltac solve_actual :=
+    match goal with
+    | [ H : Types.actual_ty _ ?X = Some _ |- _ ] => destruct X; try discriminate
+    end.
 
   Ltac solve :=
     match goal with
     | [ |- checkEx ?E ] => unfold checkEx, E, transProg; simpl; eauto
-    | [ |- failEx ?E ] => unfold failEx, E, not; intros; repeat inv_all
+    | [ |- failEx ?E ] => unfold failEx, E, not; intros; repeat (repeat inv_all; try solve_actual)
     end.
 
   Example ex1 : checkEx EX1.ex.
@@ -109,6 +121,96 @@ Section TypeDec_CHECKS.
 
   (* Slow *)
   Example ex19 : failEx EX19.ex.
+  Proof. solve. Qed.
+
+  Example ex20 : failEx EX20.ex.
+  Proof. solve. Qed.
+
+  Example ex21 : failEx EX21.ex.
+  Proof. solve. Qed.
+
+  Example ex22 : failEx EX22.ex.
+  Proof. solve. Qed.
+
+  Example ex23 : failEx EX23.ex.
+  Proof. solve. Qed.
+
+  Example ex24 : failEx EX24.ex.
+  Proof. solve. Qed.
+
+  Example ex25 : failEx EX25.ex.
+  Proof. solve. Qed.
+
+  Example ex26 : failEx EX26.ex.
+  Proof. solve. Qed.
+
+  Example ex27 : checkEx EX27.ex.
+  Proof. solve. Qed.
+
+  Example ex28 : failEx EX28.ex.
+  Proof. solve. Qed.
+
+  Example ex29 : failEx EX29.ex.
+  Proof. solve. Qed.
+
+  Example ex30 : checkEx EX30.ex.
+  Proof. solve. Qed.
+
+  Example ex31 : failEx EX31.ex.
+  Proof. solve. Qed.
+
+  Example ex32 : failEx EX32.ex.
+  Proof. solve. Qed.
+
+  Example ex33 : failEx EX33.ex.
+  Proof. solve. Qed.
+
+  Example ex34 : failEx EX34.ex.
+  Proof. solve. Qed.
+
+  Example ex35 : failEx EX35.ex.
+  Proof. solve. Qed.
+
+  Example ex36 : failEx EX36.ex.
+  Proof. solve. Qed.
+
+  Example ex37 : checkEx EX37.ex.
+  Proof. solve. Qed.
+
+  Example ex38 : failEx EX38.ex.
+  Proof. solve. Qed.
+
+  Example ex39 : failEx EX39.ex.
+  Proof. solve. Qed.
+
+  Example ex40 : failEx EX40.ex.
+  Proof. solve. Qed.
+
+  Example ex41 : checkEx EX41.ex.
+  Proof. solve. Qed.
+
+  Example ex42 : checkEx EX42.ex.
+  Proof. solve. Qed.
+
+  Example ex43 : failEx EX43.ex.
+  Proof. solve. Qed.
+
+  Example ex44 : checkEx EX44.ex.
+  Proof. solve. Qed.
+
+  Example ex45 : failEx EX45.ex.
+  Proof. solve. Qed.
+
+  Example ex46 : failEx EX46.ex.
+  Proof. solve. Qed.
+
+  Example ex47 : failEx EX47.ex.
+  Proof. solve. Qed.
+
+  Example ex48 : checkEx EX48.ex.
+  Proof. solve. Qed.
+
+  Example ex49 : checkEx EX49.ex.
   Proof. solve. Qed.
 
 End TypeDec_CHECKS.

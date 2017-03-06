@@ -1,7 +1,7 @@
-(* 
+(*
  * Types.v
  * Wolf Honore
- * 
+ *
  * Defines the types of Tiger expressions.
  *)
 
@@ -27,7 +27,7 @@ Module Type UNIQUE.
 
 End UNIQUE.
 
-Module Unique : UNIQUE.
+Module Unique <: UNIQUE.
 
   Definition t := nat.
 
@@ -283,5 +283,5 @@ Module Types' (U : UNIQUE).
     end.
 
 End Types'.
- 
+
 Module Types := Types' Unique.
