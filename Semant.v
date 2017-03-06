@@ -856,32 +856,3 @@ Section SOUNDNESS.
   Qed.
 
 End SOUNDNESS.
-
-Section COMPLETENESS.
-
-  Theorem transExp_complete : forall ce us e ety us',
-    wt_exp ce us e (ty ety) us' ->
-    transExp ce us e = OK (ety, us')
-  with transExplist_complete : forall ce us es etys us',
-    wt_explist ce us es (map ty etys) us' ->
-    transExplist ce us es = OK (etys, us')
-  with transVar_complete : forall ce us v ety us',
-    wt_var ce us v (ty ety) us' ->
-    transVar ce us v = OK (ety, us')
-  with transDec_complete : forall ce us d ce' us',
-    wt_dec ce us d ce' us' ->
-    transDec ce us d = OK (ce', us')
-  with transDeclist_complete : forall ce us ds ce' us',
-    wt_declist ce us ds ce' us' ->
-    transDeclist ce us ds = OK (ce', us').
-  Proof.
-  Admitted.
-
-  Theorem transProg_complete : forall p ety us',
-    wt_prog p (ty ety) us' ->
-    transProg p = OK (ety, us').
-  Proof.
-    intros; unfold transProg; inversion H; auto using transExp_complete.
-  Qed.
-
-End COMPLETENESS.

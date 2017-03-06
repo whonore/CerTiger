@@ -230,3 +230,171 @@ Module EX11 <: EX.
     ForExp (mk_vardec s_i true) (IntExp 10) (StringExp " ")
            (AssignExp (SimpleVar s_i) (OpExp (VarExp (SimpleVar s_i)) MinusOp (IntExp 1))).
 End EX11.
+
+Module EX12 <: EX.
+  (* let
+       var a := 0
+     in
+       for i := 0 to 100 do (a := a + 1; ())
+     end *)
+  Definition s_a := sy 20.
+  Definition s_i := sy 21.
+
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (mk_vardec s_a true) None (IntExp 0)]
+      (SeqExp E[ForExp (mk_vardec s_i true)
+                       (IntExp 0) (IntExp 100)
+                       (SeqExp E[AssignExp (SimpleVar s_a)
+                                           (OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1));
+                                 SeqExp E[]])]).
+End EX12.
+
+Module EX13 <: EX.
+  (* 3 > "df" *)
+  Definition ex : exp :=
+    OpExp (IntExp 3) GtOp (StringExp "df").
+End EX13.
+
+Module EX14 <: EX.
+  (* let
+       type arrtype = array of int
+       type rectype = {name : string, id : int}
+       var rec := rectype {name="aname", id=0}
+       var arr := arrtype [3] of 0
+     in
+       if rec <> arr then 3 else 4
+     end *)
+  Definition s_arrtype := sy 20.
+  Definition s_rectype := sy 21.
+  Definition s_rec := sy 22.
+  Definition s_name := sy 23.
+  Definition s_id := sy 24.
+  Definition s_arr := sy 25.
+
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [mk_tydec s_arrtype (ArrayTy Env.s_int);
+                 mk_tydec s_rectype (RecordTy [mk_tfield s_name Env.s_string;
+                                               mk_tfield s_id Env.s_int])];
+        VarDec (mk_vardec s_rec true) None (RecordExp E[StringExp "aname"; IntExp 0]
+                                                      [s_name; s_id]
+                                                      s_rectype);
+        VarDec (mk_vardec s_arr true) None (ArrayExp s_arrtype (IntExp 3) (IntExp 0))]
+      (SeqExp E[IfExp (OpExp (VarExp (SimpleVar s_rec)) NeqOp (VarExp (SimpleVar s_arr)))
+                      (IntExp 3)
+                      (Some (IntExp 4))]).
+End EX14.
+
+Module EX15 <: EX.
+  (* if 20 then 3 *)
+  Definition ex : exp :=
+    IfExp (IntExp 20) (IntExp 3) None.
+End EX15.
+
+Module EX16 <: EX.
+  (* let
+       type a = c
+       type b = a
+       type c = d
+       type d = a
+     in
+       ""
+     end *)
+  Definition s_a := sy 20.
+  Definition s_b := sy 21.
+  Definition s_c := sy 22.
+  Definition s_d := sy 23.
+
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [mk_tydec s_a (NameTy s_c);
+                 mk_tydec s_b (NameTy s_a);
+                 mk_tydec s_c (NameTy s_d);
+                 mk_tydec s_d (NameTy s_a)]]
+      (SeqExp E[StringExp ""]).
+End EX16.
+
+Module EX17 <: EX.
+ (* let
+      type tree = {key : int, children : treelist}
+      var d : int := 0
+      type treelist = {hd : tree, tl : treelist}
+    in
+      d
+    end *)
+  Definition s_tree := sy 20.
+  Definition s_key := sy 21.
+  Definition s_children := sy 22.
+  Definition s_d := sy 23.
+  Definition s_treelist := sy 24.
+  Definition s_hd := sy 25.
+  Definition s_tl := sy 26.
+
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [mk_tydec s_tree (RecordTy [mk_tfield s_key Env.s_int;
+                                            mk_tfield s_children s_treelist])];
+        VarDec (mk_vardec s_d true) (Some Env.s_int) (IntExp 0);
+        TypeDec [mk_tydec s_treelist (RecordTy [mk_tfield s_hd s_tree;
+                                                mk_tfield s_tl s_treelist])]]
+      (SeqExp E[VarExp (SimpleVar s_d)]).
+End EX17.
+
+Module EX18 <: EX.
+  (* let
+       function do_nothing1(a : int, b : string) : int = (do_nothing2(a + 1); 0)
+       var d := 0
+       function do_nothing2(d : int) : string = (do_nothing1(d, "str"); " ")
+     in
+       do_nothing1(0, "str2")
+     end *)
+  Definition s_do_nothing1 := sy 20.
+  Definition s_a := sy 21.
+  Definition s_b := sy 22.
+  Definition s_do_nothing2 := sy 23.
+  Definition s_d := sy 24.
+
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
+                                              mk_formals (mk_vardec s_b true) Env.s_string]
+                                             (Some Env.s_int)]
+                                             E[SeqExp E[AppExp s_do_nothing2
+                                                               E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
+                                                                 IntExp 0]];
+        VarDec (mk_vardec s_d true) None (IntExp 0);
+        FunctionDec [mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
+                               (Some Env.s_string)]
+                               E[SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_d);
+                                                                 StringExp "str"];
+                                          StringExp " "]]]
+      (SeqExp E[AppExp s_do_nothing1 E[IntExp 0; StringExp "str2"]]).
+End EX18.
+
+Module EX19 <: EX.
+  (* let
+       function do_nothing1(a : int, b : string) : int = (do_nothing2(a + 1); 0)
+       function do_nothing2(d : int) : string = (do_nothing1(a, "str"); " ")
+     in
+       do_nothing1(0, "str2")
+     end *)
+  Definition s_do_nothing1 := sy 20.
+  Definition s_a := sy 21.
+  Definition s_b := sy 22.
+  Definition s_do_nothing2 := sy 23.
+  Definition s_d := sy 24.
+
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
+                                              mk_formals (mk_vardec s_b true) Env.s_string]
+                               (Some Env.s_int);
+                     mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
+                               (Some Env.s_string)]
+                    E[SeqExp E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
+                               IntExp 0];
+                      SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_a); StringExp "str"];
+                               StringExp " "]]]
+      (SeqExp E[AppExp s_do_nothing1 E[IntExp 0; StringExp "str2"]]).
+End EX19.
