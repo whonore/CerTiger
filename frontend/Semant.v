@@ -1,7 +1,7 @@
-(* 
+(*
  * Semant.v
  * Wolf Honore
- * 
+ *
  * Defines typing semantics and the type checker.
  *)
 
@@ -175,7 +175,7 @@ Section HELPERS.
 End HELPERS.
 
 Section TYPE_CHECK.
-  
+
   (* The trans* functions attempt to assign a type to Tiger expressions, but they
      may fail. *)
 
@@ -553,7 +553,7 @@ Section TYPE_SPEC.
         wt_fundec_heads (update_ve ce ve') fds ce' ->
         wt_fundec_heads ce ({| fd_name := name; fd_params := params; fd_result := Some rty |} :: fds) ce'.
 
-  (* Some of the actual_ty calls may be redundant, but to be safe there 
+  (* Some of the actual_ty calls may be redundant, but to be safe there
      should be one before any ty_compat. *)
   Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
     | wt_varexp : forall v ty us',

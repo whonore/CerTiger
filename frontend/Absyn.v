@@ -1,7 +1,7 @@
-(* 
+(*
  * Absyn.v
  * Wolf Honore
- * 
+ *
  * Defines the abstract syntax of the Tiger language.
  *)
 

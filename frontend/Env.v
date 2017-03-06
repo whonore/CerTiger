@@ -1,7 +1,7 @@
-(* 
+(*
  * Env.v
  * Wolf Honore
- * 
+ *
  * Defines type and variable namespaces.
  *)
 

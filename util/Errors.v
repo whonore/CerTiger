@@ -1,7 +1,7 @@
-(* 
+(*
  * Errors.v
  * Wolf Honore
- * 
+ *
  * Defines an error monad and some notation to simplify writing functions
  * with the possibility of failure. Largely copied from/inspired by CompCert.
  *)

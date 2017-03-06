@@ -1,7 +1,7 @@
-(* 
+(*
  * Symbol.v
  * Wolf Honore
- * 
+ *
  * Defines the type used to represent identifiers.
  *)
 
