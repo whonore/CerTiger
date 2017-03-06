@@ -1,3 +1,10 @@
+(* 
+ * Env.v
+ * Wolf Honore
+ * 
+ * Defines type and variable namespaces.
+ *)
+
 Require Import List.
 
 Require Import Symbol.
@@ -34,8 +41,8 @@ Module Env <: ENV.
     | VarEntry : ty -> rw -> enventry
     | FunEntry : list ty -> ty -> enventry.
 
-  Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
-    Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).
+  (* Define the built-in names. It's ok to reuse symbols between types and vars
+     since they'll be in different tables. *)
 
   Definition tsyms : Symbol.sym_tbl := Symbol.make_syms
     (0 :: 1 :: nil).
@@ -54,6 +61,11 @@ Module Env <: ENV.
   Definition s_concat := Symbol.symbol' 7 vsyms.
   Definition s_not := Symbol.symbol' 8 vsyms.
   Definition s_exit := Symbol.symbol' 9 vsyms.
+
+  (* Create the inital namespaces. *)
+
+  Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
+    Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).
 
   Definition base_tenv := fold_right (enter tsyms) Symbol.empty
     ((s_int, Types.INT) :: (s_string, Types.STRING) :: nil).

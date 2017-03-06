@@ -1,3 +1,12 @@
+(* 
+ * Examples.v
+ * Wolf Honore
+ * 
+ * A set of example Tiger programs to be used in testing 
+ * various parts of the compiler. Examples taken from those
+ * provided by Zhong Shao in CPSC (4/5)21 (Yale).
+ *)
+
 Require Import List.
 
 Require Import Absyn.
@@ -36,8 +45,8 @@ Module EX1 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_arrtype (ArrayTy Env.s_int)];
-        VarDec (mk_vardec s_arr1 true) (Some s_arrtype) (ArrayExp s_arrtype (IntExp 10) (IntExp 0))]
+      D[TypeDec [Build_tydec s_arrtype (ArrayTy Env.s_int)];
+        VarDec (Build_vardec s_arr1 true) (Some s_arrtype) (ArrayExp s_arrtype (IntExp 10) (IntExp 0))]
       (SeqExp
         E[VarExp (SimpleVar s_arr1)]).
 End EX1.
@@ -56,9 +65,9 @@ Module EX2 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_myint (NameTy Env.s_int);
-                 mk_tydec s_arrtype (ArrayTy s_myint)];
-        VarDec (mk_vardec s_arr1 true) (Some s_arrtype) (ArrayExp s_arrtype (IntExp 10) (IntExp 0))]
+      D[TypeDec [Build_tydec s_myint (NameTy Env.s_int);
+                 Build_tydec s_arrtype (ArrayTy s_myint)];
+        VarDec (Build_vardec s_arr1 true) (Some s_arrtype) (ArrayExp s_arrtype (IntExp 10) (IntExp 0))]
       (SeqExp
         E[VarExp (SimpleVar s_arr1)]).
 End EX2.
@@ -78,10 +87,10 @@ Module EX3 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_rectype (RecordTy [mk_tfield s_name Env.s_string;
-                                               mk_tfield s_age Env.s_int])];
-        VarDec (mk_vardec s_rec1 true) (Some s_rectype) (RecordExp E[StringExp "Nobody"; IntExp 1000]
-                                                                   [s_name; s_age] s_rectype)]
+      D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_age Env.s_int])];
+        VarDec (Build_vardec s_rec1 true) (Some s_rectype) (RecordExp E[StringExp "Nobody"; IntExp 1000]
+                                                                      [s_name; s_age] s_rectype)]
       (SeqExp
         E[AssignExp (FieldVar (SimpleVar s_rec1) s_name) (StringExp "Someboy");
           VarExp (SimpleVar s_rec1)]).
@@ -101,7 +110,7 @@ Module EX4 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[FunctionDec [mk_fundec s_nfactor [mk_formals (mk_vardec s_n true) Env.s_int] (Some Env.s_int)]
+      D[FunctionDec [Build_fundec s_nfactor [Build_formals (Build_vardec s_n true) Env.s_int] (Some Env.s_int)]
                     E[IfExp (OpExp (VarExp (SimpleVar s_n)) EqOp (IntExp 0))
                             (IntExp 1)
                             (Some (OpExp (VarExp (SimpleVar s_n)) TimesOp
@@ -129,15 +138,15 @@ Module EX5 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_intlist (RecordTy [mk_tfield s_hd Env.s_int;
-                                               mk_tfield s_tl s_intlist]);
-                 mk_tydec s_tree (RecordTy [mk_tfield s_key Env.s_int;
-                                            mk_tfield s_children s_treelist]);
-                 mk_tydec s_treelist (RecordTy [mk_tfield s_hd s_tree;
-                                                mk_tfield s_tl s_treelist])];
-        VarDec (mk_vardec s_lis true) (Some s_intlist) (RecordExp E[IntExp 0; NilExp]
-                                                                  [s_hd; s_tl]
-                                                                  s_intlist)]
+      D[TypeDec [Build_tydec s_intlist (RecordTy [Build_tfield s_hd Env.s_int;
+                                                  Build_tfield s_tl s_intlist]);
+                 Build_tydec s_tree (RecordTy [Build_tfield s_key Env.s_int;
+                                               Build_tfield s_children s_treelist]);
+                 Build_tydec s_treelist (RecordTy [Build_tfield s_hd s_tree;
+                                                   Build_tfield s_tl s_treelist])];
+        VarDec (Build_vardec s_lis true) (Some s_intlist) (RecordExp E[IntExp 0; NilExp]
+                                                                     [s_hd; s_tl]
+                                                                     s_intlist)]
       (SeqExp E[VarExp (SimpleVar s_lis)]).
 End EX5.
 
@@ -156,11 +165,11 @@ Module EX6 <: EX.
 
   Definition ex : exp :=
   LetExp
-    D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
-                                            mk_formals (mk_vardec s_b true) Env.s_string]
-                                           None;
-                   mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
-                                           None]
+    D[FunctionDec [Build_fundec s_do_nothing1 [Build_formals (Build_vardec s_a true) Env.s_int;
+                                               Build_formals (Build_vardec s_b true) Env.s_string]
+                                               None;
+                   Build_fundec s_do_nothing2 [Build_formals (Build_vardec s_d true) Env.s_int]
+                                               None]
                   E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
                                            AppExp s_do_nothing1 E[VarExp (SimpleVar s_d);
                                                                   StringExp "str"]]]
@@ -182,11 +191,11 @@ Module EX7 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
-                                              mk_formals (mk_vardec s_b true) Env.s_string]
-                                             (Some Env.s_int);
-                     mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
-                                             (Some Env.s_string)]
+      D[FunctionDec [Build_fundec s_do_nothing1 [Build_formals (Build_vardec s_a true) Env.s_int;
+                                                 Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int);
+                     Build_fundec s_do_nothing2 [Build_formals (Build_vardec s_d true) Env.s_int]
+                                  (Some Env.s_string)]
                     E[SeqExp E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
                                IntExp 0];
                       SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_d); StringExp "str"];
@@ -227,7 +236,7 @@ Module EX11 <: EX.
   Definition s_i := sy 20.
 
   Definition ex : exp :=
-    ForExp (mk_vardec s_i true) (IntExp 10) (StringExp " ")
+    ForExp (Build_vardec s_i true) (IntExp 10) (StringExp " ")
            (AssignExp (SimpleVar s_i) (OpExp (VarExp (SimpleVar s_i)) MinusOp (IntExp 1))).
 End EX11.
 
@@ -242,8 +251,8 @@ Module EX12 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[VarDec (mk_vardec s_a true) None (IntExp 0)]
-      (SeqExp E[ForExp (mk_vardec s_i true)
+      D[VarDec (Build_vardec s_a true) None (IntExp 0)]
+      (SeqExp E[ForExp (Build_vardec s_i true)
                        (IntExp 0) (IntExp 100)
                        (SeqExp E[AssignExp (SimpleVar s_a)
                                            (OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1));
@@ -274,13 +283,13 @@ Module EX14 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_arrtype (ArrayTy Env.s_int);
-                 mk_tydec s_rectype (RecordTy [mk_tfield s_name Env.s_string;
-                                               mk_tfield s_id Env.s_int])];
-        VarDec (mk_vardec s_rec true) None (RecordExp E[StringExp "aname"; IntExp 0]
-                                                      [s_name; s_id]
-                                                      s_rectype);
-        VarDec (mk_vardec s_arr true) None (ArrayExp s_arrtype (IntExp 3) (IntExp 0))]
+      D[TypeDec [Build_tydec s_arrtype (ArrayTy Env.s_int);
+                 Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_rec true) None (RecordExp E[StringExp "aname"; IntExp 0]
+                                                         [s_name; s_id]
+                                                         s_rectype);
+        VarDec (Build_vardec s_arr true) None (ArrayExp s_arrtype (IntExp 3) (IntExp 0))]
       (SeqExp E[IfExp (OpExp (VarExp (SimpleVar s_rec)) NeqOp (VarExp (SimpleVar s_arr)))
                       (IntExp 3)
                       (Some (IntExp 4))]).
@@ -308,10 +317,10 @@ Module EX16 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_a (NameTy s_c);
-                 mk_tydec s_b (NameTy s_a);
-                 mk_tydec s_c (NameTy s_d);
-                 mk_tydec s_d (NameTy s_a)]]
+      D[TypeDec [Build_tydec s_a (NameTy s_c);
+                 Build_tydec s_b (NameTy s_a);
+                 Build_tydec s_c (NameTy s_d);
+                 Build_tydec s_d (NameTy s_a)]]
       (SeqExp E[StringExp ""]).
 End EX16.
 
@@ -333,11 +342,11 @@ Module EX17 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[TypeDec [mk_tydec s_tree (RecordTy [mk_tfield s_key Env.s_int;
-                                            mk_tfield s_children s_treelist])];
-        VarDec (mk_vardec s_d true) (Some Env.s_int) (IntExp 0);
-        TypeDec [mk_tydec s_treelist (RecordTy [mk_tfield s_hd s_tree;
-                                                mk_tfield s_tl s_treelist])]]
+      D[TypeDec [Build_tydec s_tree (RecordTy [Build_tfield s_key Env.s_int;
+                                               Build_tfield s_children s_treelist])];
+        VarDec (Build_vardec s_d true) (Some Env.s_int) (IntExp 0);
+        TypeDec [Build_tydec s_treelist (RecordTy [Build_tfield s_hd s_tree;
+                                                   Build_tfield s_tl s_treelist])]]
       (SeqExp E[VarExp (SimpleVar s_d)]).
 End EX17.
 
@@ -357,18 +366,17 @@ Module EX18 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
-                                              mk_formals (mk_vardec s_b true) Env.s_string]
-                                             (Some Env.s_int)]
-                                             E[SeqExp E[AppExp s_do_nothing2
-                                                               E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
-                                                                 IntExp 0]];
-        VarDec (mk_vardec s_d true) None (IntExp 0);
-        FunctionDec [mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
-                               (Some Env.s_string)]
-                               E[SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_d);
-                                                                 StringExp "str"];
-                                          StringExp " "]]]
+      D[FunctionDec [Build_fundec s_do_nothing1 [Build_formals (Build_vardec s_a true) Env.s_int;
+                                                 Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int)]
+                    E[SeqExp E[AppExp s_do_nothing2
+                               E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
+                                 IntExp 0]];
+        VarDec (Build_vardec s_d true) None (IntExp 0);
+        FunctionDec [Build_fundec s_do_nothing2 [Build_formals (Build_vardec s_d true) Env.s_int]
+                                  (Some Env.s_string)]
+                    E[SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_d); StringExp "str"];
+                               StringExp " "]]]
       (SeqExp E[AppExp s_do_nothing1 E[IntExp 0; StringExp "str2"]]).
 End EX18.
 
@@ -387,11 +395,11 @@ Module EX19 <: EX.
 
   Definition ex : exp :=
     LetExp
-      D[FunctionDec [mk_fundec s_do_nothing1 [mk_formals (mk_vardec s_a true) Env.s_int;
-                                              mk_formals (mk_vardec s_b true) Env.s_string]
-                               (Some Env.s_int);
-                     mk_fundec s_do_nothing2 [mk_formals (mk_vardec s_d true) Env.s_int]
-                               (Some Env.s_string)]
+      D[FunctionDec [Build_fundec s_do_nothing1 [Build_formals (Build_vardec s_a true) Env.s_int;
+                                                 Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int);
+                     Build_fundec s_do_nothing2 [Build_formals (Build_vardec s_d true) Env.s_int]
+                                  (Some Env.s_string)]
                     E[SeqExp E[AppExp s_do_nothing2 E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 1)];
                                IntExp 0];
                       SeqExp E[AppExp s_do_nothing1 E[VarExp (SimpleVar s_a); StringExp "str"];

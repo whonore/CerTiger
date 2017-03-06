@@ -1,7 +1,7 @@
 DIRS=frontend util checks
 
 COQOPTS=-q -noglob
-COQINCLUDES=$(foreach d, $(DIRS), -I $(d))
+COQINCLUDES=$(foreach d, $(DIRS), -R $(d) certiger.$(d))
 
 COQC=coqc $(COQINCLUDES) $(COQOPTS)
 COQDEP=coqdep $(COQINCLUDES)
@@ -41,5 +41,8 @@ clean:
 
 check-admits: $(FILES)
 	@grep -w 'admit\|Admitted\|ADMITTED' $^ | echo "No admits."
+
+print-includes:
+	@echo $(COQINCLUDES)
 
 -include .depend

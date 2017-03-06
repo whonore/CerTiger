@@ -1,3 +1,11 @@
+(* 
+ * SemantChecks.v
+ * Wolf Honore
+ * 
+ * Tests to ensure that the typing semantics defined in Semant.v
+ * match the informal semantics described in the book.
+ *)
+
 Require Import Absyn.
 Require Import Errors.
 Require Import Examples.

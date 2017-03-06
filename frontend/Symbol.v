@@ -1,3 +1,10 @@
+(* 
+ * Symbol.v
+ * Wolf Honore
+ * 
+ * Defines the type used to represent identifiers.
+ *)
+
 Require Import Arith.
 Require Import List.
 
@@ -31,7 +38,7 @@ Module Symbol <: SYMBOL.
 
   Definition eq (s1 s2 : t) := beq_nat s1 s2.
 
-  (* This should probably be done with typeclasses or something cleaner *)
+  (* This should probably be done with typeclasses or something cleaner. *)
 
   Lemma eq_refl : forall s,
     eq s s = true.

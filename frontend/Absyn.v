@@ -1,3 +1,10 @@
+(* 
+ * Absyn.v
+ * Wolf Honore
+ * 
+ * Defines the abstract syntax of the Tiger language.
+ *)
+
 Require Import String.
 
 Require Import Symbol.
@@ -16,19 +23,19 @@ Inductive oper : Set :=
   | GtOp : oper
   | GeOp : oper.
 
+Record tfield := { tf_name : symbol; tf_typ : symbol }.
 Inductive ty : Set :=
   | NameTy : symbol -> ty
   | RecordTy : list tfield -> ty
-  | ArrayTy : symbol -> ty
-with tfield : Set :=
-  | mk_tfield : symbol -> symbol -> tfield.
-
-Definition tf_name (tf : tfield) := let (name, _) := tf in name.
-Definition tf_typ (tf : tfield) := let (_, typ) := tf in typ.
+  | ArrayTy : symbol -> ty.
 
 (* In order to satisfy Coq's termination checker later on, explist must be used instead of list exp
-   in some places. Same with declist *)
+   in some places. Same with declist. *)
 
+Record vardec := { vd_name : symbol; vd_escape : bool }.
+Record formals := { frm_var : vardec; frm_typ : symbol }.
+Record fundec := { fd_name : symbol; fd_params : list formals; fd_result : option symbol }.
+Record tydec := { td_name : symbol; td_ty : ty }.
 Inductive var : Set :=
   | SimpleVar : symbol -> var
   | FieldVar : var -> symbol -> var
@@ -58,25 +65,4 @@ with dec : Set :=
   | TypeDec : list tydec -> dec
 with declist : Set :=
   | DNil : declist
-  | DCons : dec -> declist -> declist
-with vardec : Set :=
-  | mk_vardec : symbol -> bool -> vardec
-with formals : Set :=
-  | mk_formals : vardec -> symbol -> formals
-with fundec : Set :=
-  | mk_fundec : symbol -> list formals -> option symbol -> fundec
-with tydec : Set :=
-  | mk_tydec : symbol -> ty -> tydec.
-
-Definition vd_name (vd : vardec) := let (name, _) := vd in name.
-Definition vd_escape (vd : vardec) := let (_, escape) := vd in escape.
-
-Definition form_var (form : formals) := let (var, _) := form in var.
-Definition form_typ (form : formals) := let (_, typ) := form in typ.
-
-Definition fd_name (fd : fundec) := let (name, _, _) := fd in name.
-Definition fd_params (fd : fundec) := let (_, params, _) := fd in params.
-Definition fd_result (fd : fundec) := let (_, _, result) := fd in result.
-
-Definition td_name (td : tydec) := let (name, _) := td in name.
-Definition td_ty (td : tydec) := let (_, ty) := td in ty.
+  | DCons : dec -> declist -> declist.

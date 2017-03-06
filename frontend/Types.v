@@ -1,3 +1,10 @@
+(* 
+ * Types.v
+ * Wolf Honore
+ * 
+ * Defines the types of Tiger expressions.
+ *)
+
 Require Import Le.
 Require Import List.
 
@@ -8,6 +15,7 @@ Module Type UNIQUE.
   Parameter t : Set.
 
   Parameter new : list t -> list t * t.
+  Parameter dec : forall (u1 u2 : t), {u1 = u2} + {u1 <> u2}.
 
   Definition is_unique (us : list t) : Prop := NoDup us.
 
@@ -19,7 +27,7 @@ Module Type UNIQUE.
 
 End UNIQUE.
 
-Module Unique <: UNIQUE.
+Module Unique : UNIQUE.
 
   Definition t := nat.
 
@@ -29,11 +37,11 @@ Module Unique <: UNIQUE.
     let u := S (maximum us) in
     (u :: us, u).
 
-  Definition is_unique (us : list t) : Prop := NoDup us.
-
-  Definition unique_dec : forall (u1 u2 : t), {u1 = u2} + {u1 <> u2}.
+  Definition dec : forall (u1 u2 : t), {u1 = u2} + {u1 <> u2}.
     decide equality.
   Defined.
+
+  Definition is_unique (us : list t) : Prop := NoDup us.
 
   Lemma maximum_ge : forall u us,
     In u us -> u <= maximum us.
@@ -75,21 +83,21 @@ Module Unique <: UNIQUE.
 
 End Unique.
 
-Module Types.
+Module Types' (U : UNIQUE).
 
   Definition symbol := Symbol.t.
 
-  Definition upool := list Unique.t.
+  Definition upool := list U.t.
 
   Definition uinit : upool := nil.
-  Definition unew us : upool * Unique.t := Unique.new us.
+  Definition unew us : upool * U.t := U.new us.
 
   Inductive ty : Set :=
-    | RECORD : list rfield -> Unique.t -> ty
+    | RECORD : list rfield -> U.t -> ty
     | NIL : ty
     | INT : ty
     | STRING : ty
-    | ARRAY : ty -> Unique.t -> ty
+    | ARRAY : ty -> U.t -> ty
     | NAME : symbol -> ty
     | UNIT : ty
   with rfield : Set :=
@@ -99,7 +107,7 @@ Module Types.
   Definition rf_type (rf : rfield) := let (_, type) := rf in type.
 
   Fixpoint ty_dec (t1 t2 : ty) : {t1 = t2} + {t1 <> t2}.
-    repeat decide equality; try (apply Unique.unique_dec).
+    repeat decide equality; try (apply U.dec).
   Defined.
 
   Definition rf_eq (rf1 rf2 : rfield) : bool :=
@@ -128,9 +136,9 @@ Module Types.
   Qed.
 
   Lemma rf_eq_trans : forall rf1 rf2 rf3,
-    Types.rf_eq rf1 rf2 = true ->
-    Types.rf_eq rf2 rf3 = true ->
-    Types.rf_eq rf1 rf3 = true.
+    rf_eq rf1 rf2 = true ->
+    rf_eq rf2 rf3 = true ->
+    rf_eq rf1 rf3 = true.
   Proof.
     unfold rf_eq; intros.
     destruct (Symbol.eq (rf_name rf1) (rf_name rf2)) eqn:EQ1;
@@ -149,7 +157,7 @@ Module Types.
   Definition ty_compat (t1 t2 : ty) : bool :=
     if ty_dec t1 t2 then true
     else match t1, t2 with
-    | RECORD _ u1, RECORD _ u2 => if Unique.unique_dec u1 u2 then true else false
+    | RECORD _ u1, RECORD _ u2 => if U.dec u1 u2 then true else false
     | RECORD fs u, NIL => true
     | NIL, RECORD fs u => true
     | _, _ => false
@@ -177,12 +185,12 @@ Module Types.
         try (unfold ty_compat; rewrite EQ1; rewrite EQ2; reflexivity)
     end.
     unfold ty_compat. repeat destruct ty_dec; try discriminate.
-    destruct (Unique.unique_dec t t0); destruct (Unique.unique_dec t0 t); congruence.
+    destruct (U.dec t t0); destruct (U.dec t0 t); congruence.
   Qed.
 
   Lemma ty_compat_simpl_eq : forall t1 t2,
-    t2 = Types.INT \/ t2 = Types.STRING \/ t2 = Types.UNIT ->
-    Types.ty_compat t1 t2 = true ->
+    t2 = INT \/ t2 = STRING \/ t2 = UNIT ->
+    ty_compat t1 t2 = true ->
     t1 = t2.
   Proof.
     intros; destruct H as [H | [H | H]]; destruct t2; try discriminate;
@@ -190,8 +198,8 @@ Module Types.
   Qed.
 
   Lemma ty_compat_arr : forall t1 t2 aty u,
-    t2 = Types.ARRAY aty u ->
-    Types.ty_compat t1 t2 = true ->
+    t2 = ARRAY aty u ->
+    ty_compat t1 t2 = true ->
     t1 = t2.
   Proof.
     intros; destruct t2; try discriminate; destruct t1; try discriminate;
@@ -199,12 +207,12 @@ Module Types.
   Qed.
 
   Lemma ty_compat_rec : forall fs1 fs2 u1 u2,
-    Types.ty_compat (Types.RECORD fs1 u1) (Types.RECORD fs2 u2) = true ->
+    ty_compat (RECORD fs1 u1) (RECORD fs2 u2) = true ->
     u1 = u2.
   Proof.
     intros; unfold ty_compat in H;
     destruct (ty_dec (RECORD fs1 u1) (RECORD fs2 u2));
-    destruct (Unique.unique_dec u1 u2); congruence.
+    destruct (U.dec u1 u2); congruence.
   Qed.
 
   (* actual_ty might return another Name, but with the possibility of infinite cycles need to add a max depth *)
@@ -274,4 +282,6 @@ Module Types.
     | _, _ => t1
     end.
 
-End Types.
+End Types'.
+ 
+Module Types := Types' Unique.

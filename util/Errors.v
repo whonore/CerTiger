@@ -1,14 +1,16 @@
+(* 
+ * Errors.v
+ * Wolf Honore
+ * 
+ * Defines an error monad and some notation to simplify writing functions
+ * with the possibility of failure. Largely copied from/inspired by CompCert.
+ *)
+
 Require Import List.
-
-(* Mostly copied from CompCert *)
-
-Section Res.
 
 Inductive res {A : Type} : Type :=
   | OK : A -> @res A
   | ERR : @res A.
-
-End Res.
 
 Section RESMONAD.
 
@@ -78,6 +80,8 @@ Section MONADFACTS.
 
 End MONADFACTS.
 
+(* Tactics for unfolding monads. *)
+
 Ltac monadInv1 H :=
   match type of H with
   | (OK _ = OK _) => inversion H; clear H; try subst
@@ -126,6 +130,8 @@ Ltac monadInv H :=
   | (?F _ = OK _) =>
       ((progress simpl in H) || unfold F in H); monadInv1 H
   end.
+
+(* Monad notation similar to Haskell. *)
 
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
   (at level 200, X ident, A at level 100, B at level 200).

@@ -1,2 +1,3 @@
 #!/bin/sh
-coqide -I . -I checks "$@"
+INCLUDES=$(make print-includes)
+coqide $INCLUDES "$@"

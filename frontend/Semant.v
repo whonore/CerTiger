@@ -1,3 +1,10 @@
+(* 
+ * Semant.v
+ * Wolf Honore
+ * 
+ * Defines typing semantics and the type checker.
+ *)
+
 Require Import Arith.
 Require Import List.
 
@@ -10,6 +17,7 @@ Require Import Types.
 Definition tenv := @Symbol.table Types.ty.
 Definition venv := @Symbol.table Env.enventry.
 
+(* Will be used later to create IR *)
 Module Translate.
   Definition exp := unit.
 End Translate.
@@ -154,7 +162,7 @@ Section HELPERS.
 
   (* Nestings of NAME greater than Types.max_depth are treated as cycles to remove issue of
      possible non-termination. Since actual_ty already implements this, just check that it
-     doesn't return failure *)
+     doesn't return failure. *)
   Fixpoint no_cycles (te : tenv) (ts : list Symbol.t) : bool :=
     match ts with
     | nil => true
@@ -167,6 +175,9 @@ Section HELPERS.
 End HELPERS.
 
 Section TYPE_CHECK.
+  
+  (* The trans* functions attempt to assign a type to Tiger expressions, but they
+     may fail. *)
 
   Definition transOp (lty rty : Types.ty) (f : opType) : @res expty:=
     if Types.ty_compat lty rty
@@ -233,7 +244,7 @@ Section TYPE_CHECK.
   Fixpoint transFormalsHeads (te : tenv) (fs : list Absyn.formals) : @res (list Types.ty) :=
     match fs with
     | nil => OK nil
-    | f :: fs' => do fty <- lift (Symbol.look te (form_typ f));
+    | f :: fs' => do fty <- lift (Symbol.look te (frm_typ f));
                   do ftys <- transFormalsHeads te fs';
                   OK (fty :: ftys)
     end.
@@ -241,7 +252,7 @@ Section TYPE_CHECK.
   Fixpoint transFormals (ve : venv) (fs : list Absyn.formals) (ftys : list Types.ty) : @res venv :=
     match fs, ftys with
     | nil, nil => OK ve
-    | f :: fs', fty :: ftys' => let ve' := Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry fty Env.RW) in
+    | f :: fs', fty :: ftys' => let ve' := Symbol.enter ve (vd_name (frm_var f)) (Env.VarEntry fty Env.RW) in
                                 transFormals ve' fs' ftys'
     | _, _ => ERR
     end.
@@ -249,7 +260,7 @@ Section TYPE_CHECK.
   Fixpoint transFundecHeads (ce : composite_env) (fds : list Absyn.fundec) : @res composite_env :=
     match fds with
     | nil => OK ce
-    | fd :: fds' => check sym_nodup (map (fun p => vd_name (form_var p)) (fd_params fd));
+    | fd :: fds' => check sym_nodup (map (fun p => vd_name (frm_var p)) (fd_params fd));
                     do formtys <- transFormalsHeads (te ce) (fd_params fd);
                     do rty' <- match fd_result fd with
                                | None => OK Types.UNIT
@@ -448,6 +459,8 @@ End TYPE_CHECK.
 
 Section TYPE_SPEC.
 
+  (* The wt_* inductive relations define the semantics of well-typed Tiger expressions. *)
+
   Inductive wt_op : Types.ty -> Types.ty -> opType -> Types.ty -> Prop :=
     | wt_arith :
         wt_op Types.INT Types.INT Arith Types.INT
@@ -511,7 +524,7 @@ Section TYPE_SPEC.
     | wt_formhd_nil :
         wt_formals_heads te nil nil
     | wt_formhd_cons : forall f fs ty tys,
-        Symbol.look te (form_typ f) = Some ty ->
+        Symbol.look te (frm_typ f) = Some ty ->
         wt_formals_heads te fs tys ->
         wt_formals_heads te (f :: fs) (ty :: tys).
 
@@ -519,7 +532,7 @@ Section TYPE_SPEC.
     | wt_form_nil :
         wt_formals ve nil nil ve
     | wt_form_cons : forall f fs ty tys ve' ve'',
-        Symbol.enter ve (vd_name (form_var f)) (Env.VarEntry ty Env.RW) = ve' ->
+        Symbol.enter ve (vd_name (frm_var f)) (Env.VarEntry ty Env.RW) = ve' ->
         wt_formals ve' fs tys ve'' ->
         wt_formals ve (f :: fs) (ty :: tys) ve''.
 
@@ -527,20 +540,21 @@ Section TYPE_SPEC.
     | wt_fdh_nil :
         wt_fundec_heads ce nil ce
     | wt_fdh_noty : forall name params fds formtys ve' ce',
-        sym_nodup (map (fun p => vd_name (form_var p)) params) = true ->
+        sym_nodup (map (fun p => vd_name (frm_var p)) params) = true ->
         wt_formals_heads (te ce) params formtys ->
         Symbol.enter (ve ce) name (Env.FunEntry formtys Types.UNIT) = ve' ->
         wt_fundec_heads (update_ve ce ve') fds ce' ->
-        wt_fundec_heads ce ((mk_fundec name params None) :: fds) ce'
+        wt_fundec_heads ce ({| fd_name := name; fd_params := params; fd_result := None|} :: fds) ce'
     | wt_fdh_cons : forall name params fds formtys rty rty' ve' ce',
-        sym_nodup (map (fun p => vd_name (form_var p)) params) = true ->
+        sym_nodup (map (fun p => vd_name (frm_var p)) params) = true ->
         wt_formals_heads (te ce) params formtys ->
         Symbol.look (te ce) rty = Some rty' ->
         Symbol.enter (ve ce) name (Env.FunEntry formtys rty') = ve' ->
         wt_fundec_heads (update_ve ce ve') fds ce' ->
-        wt_fundec_heads ce ((mk_fundec name params (Some rty)) :: fds) ce'.
+        wt_fundec_heads ce ({| fd_name := name; fd_params := params; fd_result := Some rty |} :: fds) ce'.
 
-  (* Some of the actual_ty calls may be redundant, but to be safe there should be one before any ty_compat *)
+  (* Some of the actual_ty calls may be redundant, but to be safe there 
+     should be one before any ty_compat. *)
   Inductive wt_exp (ce : composite_env) (us : Types.upool) : Absyn.exp -> Types.ty -> Types.upool -> Prop :=
     | wt_varexp : forall v ty us',
         wt_var ce us v ty us' ->
@@ -713,6 +727,9 @@ End TYPE_SPEC.
 
 Section SOUNDNESS.
 
+  (* Proofs that if transProg returns success with some type, then the program
+     is well-typed with respect to the wt_prog semantics. *)
+
   Ltac type_subst := match goal with
                      | [ H1 : lift (Types.actual_ty _ ?X) = OK ?Y,
                          H2 : Types.ty_compat ?Y ?Z = true
@@ -725,7 +742,6 @@ Section SOUNDNESS.
   Local Hint Resolve lift_option.
   Local Hint Resolve Types.ty_compat_sym.
 
-  (* This depends on some details of ty_compat and others that it shouldn't *)
   Lemma transOp_sound : forall l r f ety,
     transOp l r f = OK ety ->
     wt_op l r f (ty ety).
@@ -788,7 +804,7 @@ Section SOUNDNESS.
     transFundecHeads ce fds = OK ce' ->
     wt_fundec_heads ce fds ce'.
   Proof.
-    intros; generalize dependent ce; induction fds; intros; try (destruct a; destruct o); sound_solve H.
+    intros; generalize dependent ce; induction fds; intros; try (destruct a; destruct fd_result); sound_solve H.
   Qed.
   Local Hint Resolve transFundecHeads_sound.
 
