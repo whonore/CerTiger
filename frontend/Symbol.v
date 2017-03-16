@@ -6,12 +6,13 @@
  *)
 
 Require Import Arith.
+Require Import DecEqFacts.
 Require Import List.
 
 Module Type SYMBOL.
 
   Parameter t : Set.
-  Parameter eq : t -> t -> bool.
+  Parameter eq : forall (t1 t2 : t), {t1 = t2} + {t1 <> t2}.
 
   Parameter sym_tbl : Set.
   Parameter sym_empty : sym_tbl.
@@ -21,12 +22,22 @@ Module Type SYMBOL.
 
   Section TABLE.
 
-    Variable A : Set.
+    Context {A : Set}.
 
     Parameter table : forall A : Set, Set.
     Parameter empty : table A.
     Parameter enter : table A -> t -> A -> table A.
     Parameter look : table A -> t -> option A.
+
+    Hypothesis look_empty : forall s,
+      look empty s = None.
+
+    Hypothesis look_enter_same : forall tbl s v,
+      look (enter tbl s v) s = Some v.
+
+    Hypothesis look_enter_other : forall tbl s1 s2 v,
+      s1 <> s2 ->
+      look (enter tbl s1 v) s2 = look tbl s2.
 
   End TABLE.
 
@@ -36,29 +47,7 @@ Module Symbol <: SYMBOL.
 
   Definition t := nat.
 
-  Definition eq (s1 s2 : t) := beq_nat s1 s2.
-
-  (* This should probably be done with typeclasses or something cleaner. *)
-
-  Lemma eq_refl : forall s,
-    eq s s = true.
-  Proof.
-    unfold eq; symmetry; apply beq_nat_refl.
-  Qed.
-
-  Lemma eq_sym : forall s1 s2,
-    eq s1 s2 = eq s2 s1.
-  Proof.
-    unfold eq; induction s1; destruct s2; simpl; auto.
-  Qed.
-
-  Lemma eq_trans : forall s1 s2 s3,
-    eq s1 s2 = true ->
-    eq s2 s3 = true ->
-    eq s1 s3 = true.
-  Proof.
-    induction s1; destruct s2, s3; simpl; auto. discriminate. eauto.
-  Qed.
+  Definition eq := eq_nat_dec.
 
   Definition sym_tbl := list t.
   Definition sym_empty : sym_tbl := nil.
@@ -77,10 +66,10 @@ Module Symbol <: SYMBOL.
   Definition symbol' name tbl := fst (symbol name tbl).
   Definition symbolT name tbl := snd (symbol name tbl).
 
+  Definition name (sym : t) := sym.
+
   Definition add_syms tbl names : sym_tbl := fold_right symbolT tbl names.
   Definition make_syms names : sym_tbl := add_syms sym_empty names.
-
-  Definition name (sym : t) := sym.
 
   Section TABLE.
 
@@ -92,7 +81,7 @@ Module Symbol <: SYMBOL.
 
     Definition enter (tbl : table) sym val := (sym, val) :: tbl.
 
-    Fixpoint look (tbl : table) sym :=
+    Fixpoint look (tbl : table) (sym : t) :=
       match tbl with
       | nil => None
       | (sym', val) :: tbl' => if eq sym sym'
@@ -103,15 +92,21 @@ Module Symbol <: SYMBOL.
     Definition enter_all (tbl : table) (svs : list (t * A)) :=
       fold_left (fun t sv => enter t (fst sv) (snd sv)) svs tbl.
 
-    Lemma empty_look : forall s,
+    Lemma look_empty : forall s,
       look empty s = None.
     Proof. reflexivity. Qed.
 
-    Lemma enter_shadow : forall tbl s v1 v2,
-      look tbl s = Some v1 ->
-      look (enter tbl s v2) s = Some v2.
+    Lemma look_enter_same : forall tbl s v,
+      look (enter tbl s v) s = Some v.
     Proof.
-      intros; simpl; rewrite eq_refl; reflexivity.
+      intros; simpl; apply eq_refl.
+    Qed.
+
+    Lemma look_enter_other : forall tbl s1 s2 v,
+      s1 <> s2 ->
+      look (enter tbl s1 v) s2 = look tbl s2.
+    Proof.
+      intros. simpl. rewrite eq_false; congruence.
     Qed.
 
   End TABLE.

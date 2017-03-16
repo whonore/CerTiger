@@ -9,6 +9,7 @@ Require Import Arith.
 Require Import List.
 
 Require Import Absyn.
+Require Import DecEqFacts.
 Require Import Env.
 Require Import Errors.
 Require Import Symbol.
@@ -50,88 +51,18 @@ Definition reset_ll (ce : composite_env) :=
 
 Section HELPERS.
 
-  (* Some of these should be moved elsewhere *)
-
   Definition mk_expty ty := {| exp := tt; ty := ty |}.
 
-  Fixpoint list_eq {A} (eq : A -> A -> bool) (xs1 xs2 : list A) : bool :=
-    match xs1, xs2 with
-    | nil, nil => true
-    | x1 :: xs1', x2 :: xs2' => andb (eq x1 x2) (list_eq eq xs1' xs2')
-    | _, _ => false
-    end.
-
-  Fixpoint list_in {A} (eq : A -> A -> bool) (x : A) (xs : list A) : bool :=
-    match xs with
-    | nil => false
-    | x' :: xs' => orb (eq x x') (list_in eq x xs')
-    end.
-
-  Fixpoint list_nodup {A} (fin : A -> list A -> bool) (xs : list A) : bool :=
-    match xs with
-    | nil => true
-    | x :: xs' => andb (negb (fin x xs')) (list_nodup fin xs')
-    end.
-
-  Definition tys_compat := list_eq Types.ty_compat.
-
-  Definition syms_eq := list_eq Symbol.eq.
-  Definition sym_in := list_in Symbol.eq.
-  Definition sym_nodup := list_nodup sym_in.
-
-  Definition rf_in := list_in Types.rf_eq.
-  Fixpoint rf_find (s : Symbol.t) (rfs : list Types.rfield) : option Types.rfield :=
-    match rfs with
-    | nil => None
-    | rf :: rfs' => if Symbol.eq s (Types.rf_name rf)
-                      then Some rf
-                      else rf_find s rfs'
-    end.
+  Definition rf_find (s : Symbol.t) := find (fun rf => if Symbol.eq s (Types.rf_name rf) then true else false).
 
   Lemma rf_find_name : forall s rf rfs,
     rf_find s rfs = Some rf ->
-    Symbol.eq (Types.rf_name rf) s = true.
+    Types.rf_name rf = s.
   Proof.
     intros; induction rfs; inversion H.
-    destruct (Symbol.eq s (Types.rf_name a)) eqn:EQ.
-    - inversion H1; subst; rewrite Symbol.eq_sym; assumption.
+    destruct (Symbol.eq s (Types.rf_name a)).
+    - inversion H1; subst; reflexivity.
     - auto.
-  Qed.
-
-  Lemma rf_find_in : forall s rf rfs,
-    rf_find s rfs = Some rf ->
-    rf_in rf rfs = true.
-  Proof.
-    intros; induction rfs; inversion H.
-    destruct (Symbol.eq s (Types.rf_name a)) eqn:EQ.
-    - inversion H1; subst; unfold rf_in; simpl.
-      rewrite Types.rf_eq_refl; reflexivity.
-    - unfold rf_in; simpl.
-      apply IHrfs in H1; fold (rf_in rf rfs); rewrite H1.
-      rewrite Bool.orb_true_r; reflexivity.
-  Qed.
-
-  Lemma rf_eq_in : forall rf1 rf2 rfs,
-    Types.rf_eq rf1 rf2 = true ->
-    rf_in rf1 rfs = rf_in rf2 rfs.
-  Proof.
-    intros; induction rfs.
-    - unfold rf_in; reflexivity.
-    - unfold rf_in; simpl.
-      fold (rf_in rf1 rfs); fold (rf_in rf2 rfs); rewrite IHrfs.
-      destruct (rf_in rf2 rfs); [repeat rewrite Bool.orb_true_r; reflexivity | repeat rewrite Bool.orb_false_r].
-      destruct (Types.rf_eq rf1 a) eqn:EQ1; destruct (Types.rf_eq rf2 a) eqn:EQ2; try reflexivity;
-      [specialize Types.rf_eq_trans with rf2 rf1 a; intros; apply H0 in EQ1 |
-       specialize Types.rf_eq_trans with rf1 rf2 a; intros; apply H0 in EQ2];
-      try congruence; eauto using Types.rf_eq_sym.
-  Qed.
-
-  Lemma sym_eq_rf_eq : forall s1 s2 ty,
-    Symbol.eq s1 s2 = true ->
-    Types.rf_eq (Types.mk_rfield s1 ty) (Types.mk_rfield s2 ty) = true.
-  Proof.
-    intros; unfold Types.rf_eq; simpl; rewrite H.
-    destruct (Types.ty_dec ty0 ty0); congruence.
   Qed.
 
   Fixpoint make_rfs (names : list Symbol.t) (tys : list Types.ty) : list Types.rfield :=
@@ -176,6 +107,9 @@ End HELPERS.
 
 Section TYPE_CHECK.
 
+  Let syms_eq := list_eq_dec Symbol.eq.
+  Let syms_nodup := nodup Symbol.eq.
+
   (* The trans* functions attempt to assign a type to Tiger expressions, but they
      may fail. *)
 
@@ -218,7 +152,7 @@ Section TYPE_CHECK.
     | NameTy name => do ty <- lift (Symbol.look te name);
                      OK (ty, us)
     | RecordTy fields => do ftys <- transFields te us (map tf_typ fields);
-                         check sym_nodup (map tf_name fields);
+                         check syms_nodup (map tf_name fields);
                          let (us', u) := Types.unew us in
                          OK (Types.RECORD (make_rfs (map tf_name fields) ftys) u, us')
     | ArrayTy name => do ty <- lift (Symbol.look te name);
@@ -260,7 +194,7 @@ Section TYPE_CHECK.
   Fixpoint transFundecHeads (ce : composite_env) (fds : list Absyn.fundec) : @res composite_env :=
     match fds with
     | nil => OK ce
-    | fd :: fds' => check sym_nodup (map (fun p => vd_name (frm_var p)) (fd_params fd));
+    | fd :: fds' => check syms_nodup (map (fun p => vd_name (frm_var p)) (fd_params fd));
                     do formtys <- transFormalsHeads (te ce) (fd_params fd);
                     do rty' <- match fd_result fd with
                                | None => OK Types.UNIT
@@ -282,7 +216,7 @@ Section TYPE_CHECK.
                            do (argtys, us') <- transExplist ce us args;
                            do formtys' <- lift (Types.actual_tys (te ce) formtys);
                            do argtys' <- lift (Types.actual_tys (te ce) (map ty argtys));
-                           check tys_compat argtys' formtys';
+                           check Types.tys_compat argtys' formtys';
                            OK (mk_expty retty, us')
                        | _ => ERR
                        end
@@ -300,7 +234,7 @@ Section TYPE_CHECK.
                                         do (etys, us') <- transExplist ce us fvals;
                                         do etys' <- lift (Types.actual_tys (te ce) (map ty etys));
                                         do fieldtys <- lift (Types.actual_tys (te ce) (map Types.rf_type fields));
-                                        check tys_compat etys' fieldtys;
+                                        check Types.tys_compat etys' fieldtys;
                                         OK (mk_expty recty', us')
                                     | _ => ERR
                                     end
@@ -405,7 +339,7 @@ Section TYPE_CHECK.
     end
   with transDec (ce : composite_env) (us : Types.upool) (dec : Absyn.dec) : @res (composite_env * Types.upool) :=
     match dec with
-    | FunctionDec decs bodies => check sym_nodup (map fd_name decs);
+    | FunctionDec decs bodies => check syms_nodup (map fd_name decs);
                                  do ce' <- transFundecHeads ce decs;
                                  do us' <- transFundecs ce' us decs bodies;
                                  OK (ce', us')
@@ -423,7 +357,7 @@ Section TYPE_CHECK.
                                     check Types.ty_compat valty' vty';
                                     let ve' := Symbol.enter (ve ce) (vd_name v) (Env.VarEntry vty Env.RW) in
                                     OK (update_ve ce ve', us')
-    | TypeDec decs => check sym_nodup (map td_name decs);
+    | TypeDec decs => check syms_nodup (map td_name decs);
                       do te' <- transTydecHeads (te ce) decs;
                       do (te'', us') <- transTydecs te' us decs;
                       check no_cycles te'' (map td_name decs);
@@ -494,7 +428,7 @@ Section TYPE_SPEC.
         Symbol.look te n = Some ty ->
         wt_ty te us (NameTy n) ty us
     | wt_recty : forall fs ftys u us',
-        sym_nodup (map tf_name fs) = true ->
+        NoDup (map tf_name fs) ->
         wt_fields te us (map tf_typ fs) ftys ->
         (us', u) = Types.unew us ->
         wt_ty te us (RecordTy fs) (Types.RECORD (make_rfs (map tf_name fs) ftys) u) us'
@@ -540,13 +474,13 @@ Section TYPE_SPEC.
     | wt_fdh_nil :
         wt_fundec_heads ce nil ce
     | wt_fdh_noty : forall name params fds formtys ve' ce',
-        sym_nodup (map (fun p => vd_name (frm_var p)) params) = true ->
+        NoDup (map (fun p => vd_name (frm_var p)) params) ->
         wt_formals_heads (te ce) params formtys ->
         Symbol.enter (ve ce) name (Env.FunEntry formtys Types.UNIT) = ve' ->
         wt_fundec_heads (update_ve ce ve') fds ce' ->
         wt_fundec_heads ce ({| fd_name := name; fd_params := params; fd_result := None|} :: fds) ce'
     | wt_fdh_cons : forall name params fds formtys rty rty' ve' ce',
-        sym_nodup (map (fun p => vd_name (frm_var p)) params) = true ->
+        NoDup (map (fun p => vd_name (frm_var p)) params) ->
         wt_formals_heads (te ce) params formtys ->
         Symbol.look (te ce) rty = Some rty' ->
         Symbol.enter (ve ce) name (Env.FunEntry formtys rty') = ve' ->
@@ -570,7 +504,7 @@ Section TYPE_SPEC.
         wt_explist ce us args argtys us' ->
         Types.actual_tys (te ce) formtys = Some formtys' ->
         Types.actual_tys (te ce) argtys = Some argtys' ->
-        tys_compat argtys' formtys' = true ->
+        Types.tys_compat argtys' formtys' = true ->
         wt_exp ce us (AppExp f args) retty us'
     | wt_oppexp : forall f l r fty lty rty lty' rty' us' us'',
         wt_exp ce us l lty us' ->
@@ -582,11 +516,11 @@ Section TYPE_SPEC.
     | wt_recexp : forall fvals fnames ftys ftys' rty ty u fields fieldtys us',
         Symbol.look (te ce) rty = Some ty ->
         Types.actual_ty (te ce) ty = Some (Types.RECORD fields u) ->
-        syms_eq fnames (map Types.rf_name fields) = true ->
+        fnames = (map Types.rf_name fields) ->
         wt_explist ce us fvals ftys us' ->
         Types.actual_tys (te ce) (map Types.rf_type fields) = Some fieldtys ->
         Types.actual_tys (te ce) ftys = Some ftys' ->
-        tys_compat ftys' fieldtys = true ->
+        Types.tys_compat ftys' fieldtys = true ->
         wt_exp ce us (RecordExp fvals fnames rty) (Types.RECORD fields u) us'
     | wt_seqexp : forall es tys ty us',
         wt_explist ce us es tys us' ->
@@ -662,7 +596,7 @@ Section TYPE_SPEC.
     | wt_fvar : forall v vty f fs u ty ty' us',
         wt_var ce us v vty us' ->
         Types.actual_ty (te ce) vty = Some (Types.RECORD fs u) ->
-        rf_in (Types.mk_rfield f ty) fs = true ->
+        In (Types.mk_rfield f ty) fs ->
         Types.actual_ty (te ce) ty = Some ty' ->
         wt_var ce us (FieldVar v f) ty' us'
     | wt_ssvar : forall v idx u idxty vty ty ty' us' us'',
@@ -674,7 +608,7 @@ Section TYPE_SPEC.
         wt_var ce us (SubscriptVar v idx) ty' us''
   with wt_dec (ce : composite_env) (us : Types.upool) : Absyn.dec -> composite_env -> Types.upool -> Prop :=
     | wt_fundec : forall fs bs ce' us',
-        sym_nodup (map fd_name fs) = true ->
+        NoDup (map fd_name fs) ->
         wt_fundec_heads ce fs ce' ->
         wt_fundecs ce' us fs bs us' ->
         wt_dec ce us (FunctionDec fs bs) ce' us'
@@ -693,7 +627,7 @@ Section TYPE_SPEC.
         Symbol.enter (ve ce) (vd_name v) (Env.VarEntry ty Env.RW) = ve' ->
         wt_dec ce us (VarDec v (Some tyname) e) (update_ve ce ve') us'
     | wt_tydec : forall tds te' te'' us',
-        sym_nodup (map td_name tds) = true ->
+        NoDup (map td_name tds) ->
         wt_tydec_heads (te ce) tds te' ->
         wt_tydecs te' us tds te'' us' ->
         no_cycles te'' (map td_name tds) = true ->
@@ -741,6 +675,7 @@ Section SOUNDNESS.
 
   Local Hint Resolve lift_option.
   Local Hint Resolve Types.ty_compat_sym.
+  Local Hint Resolve nodup_sound.
 
   Lemma transOp_sound : forall l r f ety,
     transOp l r f = OK ety ->
@@ -765,6 +700,7 @@ Section SOUNDNESS.
     wt_ty te us abty ty us'.
   Proof.
     destruct abty; intros; sound_solve H.
+
   Qed.
   Local Hint Resolve transTy_sound.
 
@@ -845,15 +781,12 @@ Section SOUNDNESS.
     - destruct v; intros;
       try solve [sound_solve H].
       + monadInv H; econstructor; eauto.
-        { apply lift_option in EQ0.
-          pose proof EQ0.
-          apply rf_find_in in EQ0.
-          apply rf_find_name in H.
-          erewrite rf_eq_in. eassumption.
-          apply sym_eq_rf_eq.
-          fold (Types.rf_name x2).
-          rewrite Symbol.eq_sym; assumption.
-        }
+        apply lift_option in EQ0.
+        pose proof EQ0.
+        unfold rf_find in H.
+        apply find_In in H.
+        apply rf_find_name in EQ0.
+        subst; destruct x2; simpl; assumption.
     - destruct d; intros.
       + sound_solve H.
       + destruct o; monadInv H; econstructor; eauto; congruence.

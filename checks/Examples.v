@@ -830,7 +830,7 @@ Module EX41 <: EX.
   Definition ex : exp :=
     LetExp
       D[TypeDec [Build_tydec s_a (NameTy Env.s_int)]]
-      (SeqExp 
+      (SeqExp
         E[LetExp
           D[TypeDec [Build_tydec s_a (NameTy Env.s_string)]]
           (SeqExp E[IntExp 0])]).

@@ -6,7 +6,8 @@ COQINCLUDES=$(foreach d, $(DIRS), -R $(d) certiger.$(d))
 COQC=coqc $(COQINCLUDES) $(COQOPTS)
 COQDEP=coqdep $(COQINCLUDES)
 
-UTIL=util/Errors.v
+UTIL=util/Errors.v \
+	 util/DecEqFacts.v
 
 FRONTEND=frontend/Absyn.v \
 		 frontend/Env.v \
@@ -14,7 +15,8 @@ FRONTEND=frontend/Absyn.v \
 		 frontend/Symbol.v \
 		 frontend/Types.v
 
-CHECKS=checks/Examples.v checks/SemantChecks.v
+CHECKS=checks/Examples.v \
+	   checks/SemantChecks.v
 
 PROOF=$(FRONTEND) $(UTIL)
 FILES=$(FRONTEND) $(UTIL) $(CHECKS)

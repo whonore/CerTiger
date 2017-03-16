@@ -42,6 +42,7 @@ Section TypeDec_CHECKS.
     | [ H : wt_declist _ _ _ _ _ |- _ ] => inv H
     | [ H : wt_fundecs _ _ _ _ _  |- _ ] => inv H
     | [ H : wt_prog _ _ _ |- _ ] => inv H
+    | [ H : _ \/ _ |- _ ] => inv H
     | [ H : (_, _) = Types.unew _ |- _ ] => inv H
     | [ H : Types.actual_ty _ Types.INT = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
     | [ H : Types.actual_ty _ Types.STRING = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
@@ -50,7 +51,8 @@ Section TypeDec_CHECKS.
     | [ H : Types.actual_ty _ (Types.ARRAY _ _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
     | [ H : Types.actual_ty _ (Types.RECORD _ _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
     | [ H : Types.actual_ty _ (Types.NAME _) = Some _ |- _ ] => unfold Types.actual_ty in H; simpl in H
-    end; simpl in *; try discriminate.
+    | [ H : List.NoDup _ |- _ ] => inv H
+    end; simpl in *; try discriminate; try tauto.
 
   Ltac solve_actual :=
     match goal with
@@ -102,9 +104,8 @@ Section TypeDec_CHECKS.
   Example ex13 : failEx EX13.ex.
   Proof. solve. Qed.
 
-  (* Very slow *)
-  Example ex14 : failEx EX14.ex.
-  Proof. solve. Qed.
+  (* Moved to the end *)
+  (* Example ex14 : failEx EX14.ex *)
 
   Example ex15 : failEx EX15.ex.
   Proof. solve. Qed.
@@ -115,16 +116,14 @@ Section TypeDec_CHECKS.
   Example ex17 : failEx EX17.ex.
   Proof. solve. Qed.
 
-  (* Slow *)
-  Example ex18 : failEx EX18.ex.
-  Proof. solve. Qed.
+  (* Moved to the end *)
+  (* Example ex18 : failEx EX18.ex. *)
 
-  (* Slow *)
-  Example ex19 : failEx EX19.ex.
-  Proof. solve. Qed.
+  (* Moved to the end *)
+  (* Example ex19 : failEx EX19.ex. *)
 
-  Example ex20 : failEx EX20.ex.
-  Proof. solve. Qed.
+  (* Moved to the end *)
+  (* Example ex20 : failEx EX20.ex. *)
 
   Example ex21 : failEx EX21.ex.
   Proof. solve. Qed.
@@ -211,6 +210,20 @@ Section TypeDec_CHECKS.
   Proof. solve. Qed.
 
   Example ex49 : checkEx EX49.ex.
+  Proof. solve. Qed.
+
+  (* Slow examples *)
+
+  Example ex14 : failEx EX14.ex.
+  Proof. solve. Qed.
+
+  Example ex18 : failEx EX18.ex.
+  Proof. solve. Qed.
+
+  Example ex19 : failEx EX19.ex.
+  Proof. solve. Qed.
+
+  Example ex20 : failEx EX20.ex.
   Proof. solve. Qed.
 
 End TypeDec_CHECKS.
