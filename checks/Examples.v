@@ -99,7 +99,7 @@ End EX3.
 Module EX4 <: EX.
   (* let
        function nfactor(n: int) : int =
-         if  n = 0
+         if n = 0
            then 1
            else n * nfactor(n - 1)
          in
@@ -125,7 +125,7 @@ Module EX5 <: EX.
        type treelist = {hd : tree, tl : treelist}
        var lis : intlist := intlist {hd=0, tl=nil}
      in
-	lis
+       lis
      end *)
   Definition s_intlist := sy 20.
   Definition s_hd := sy 21.
@@ -214,7 +214,7 @@ End EX8.
 
 Module EX9 <: EX.
   (* Error *)
-  (* if (5>4) then 13 else  " " *)
+  (* if (5>4) then 13 else " " *)
 
   Definition ex : exp :=
     IfExp (OpExp (IntExp 5) GtOp (IntExp 4))
@@ -260,12 +260,15 @@ Module EX12 <: EX.
 End EX12.
 
 Module EX13 <: EX.
+  (* Error *)
   (* 3 > "df" *)
+
   Definition ex : exp :=
     OpExp (IntExp 3) GtOp (StringExp "df").
 End EX13.
 
 Module EX14 <: EX.
+  (* Error *)
   (* let
        type arrtype = array of int
        type rectype = {name : string, id : int}
@@ -296,12 +299,15 @@ Module EX14 <: EX.
 End EX14.
 
 Module EX15 <: EX.
+  (* Error *)
   (* if 20 then 3 *)
+
   Definition ex : exp :=
     IfExp (IntExp 20) (IntExp 3) None.
 End EX15.
 
 Module EX16 <: EX.
+  (* Error *)
   (* let
        type a = c
        type b = a
@@ -325,13 +331,14 @@ Module EX16 <: EX.
 End EX16.
 
 Module EX17 <: EX.
- (* let
-      type tree = {key : int, children : treelist}
-      var d : int := 0
-      type treelist = {hd : tree, tl : treelist}
-    in
-      d
-    end *)
+  (* Error *)
+  (* let
+       type tree = {key : int, children : treelist}
+       var d : int := 0
+       type treelist = {hd : tree, tl : treelist}
+     in
+       d
+     end *)
   Definition s_tree := sy 20.
   Definition s_key := sy 21.
   Definition s_children := sy 22.
@@ -351,6 +358,7 @@ Module EX17 <: EX.
 End EX17.
 
 Module EX18 <: EX.
+  (* Error *)
   (* let
        function do_nothing1(a : int, b : string) : int = (do_nothing2(a + 1); 0)
        var d := 0
@@ -381,6 +389,7 @@ Module EX18 <: EX.
 End EX18.
 
 Module EX19 <: EX.
+  (* Error *)
   (* let
        function do_nothing1(a : int, b : string) : int = (do_nothing2(a + 1); 0)
        function do_nothing2(d : int) : string = (do_nothing1(a, "str"); " ")
@@ -408,766 +417,652 @@ Module EX19 <: EX.
 End EX19.
 
 Module EX20 <: EX.
-(*
-/* error: undeclared variable i */
+  (* Error *)
+  (* while 10 > 5 do (i + 1; ()) *)
+  Definition s_i := sy 20.
 
-while 10 > 5 do (i+1;())
-*)
-Definition s_i := sy 20.
-
-Definition ex : exp :=
-WhileExp (OpExp (IntExp 10) GtOp (IntExp 5))
-(SeqExp E[OpExp (VarExp (SimpleVar s_i)) PlusOp (IntExp 1);
-SeqExp E[]]).
+  Definition ex : exp :=
+    WhileExp (OpExp (IntExp 10) GtOp (IntExp 5))
+             (SeqExp E[OpExp (VarExp (SimpleVar s_i)) PlusOp (IntExp 1);
+                     SeqExp E[]]).
 End EX20.
 
 Module EX21 <: EX.
-(*
-/* error : procedure returns value  and procedure is used in arexpr */
-let
+  (* Error *)
+  (* let
+       function nfactor(n : int) =
+         if n = 0
+           then 1
+           else n * nfactor(n - 1)
+     in
+       nfactor(10)
+     end *)
+  Definition s_n := sy 20.
+  Definition s_nfactor := sy 21.
 
-/* calculate n! */
-function nfactor(n: int) =
-		if  n = 0
-			then 1
-			else n * nfactor(n-1)
-
-in
-	nfactor(10)
-end
-
-*)
-Definition s_n := sy 20.
-Definition s_nfactor := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_nfactor [Build_formals (Build_vardec s_n true) Env.s_int]
-(None)]
-E[IfExp (OpExp (VarExp (SimpleVar s_n)) EqOp (IntExp 0))
-(IntExp 1)
-(Some (OpExp (VarExp (SimpleVar s_n)) TimesOp (AppExp s_nfactor E[OpExp (VarExp (SimpleVar s_n)) MinusOp (IntExp 1)])))]]
-(SeqExp E[AppExp s_nfactor E[IntExp 10]]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_nfactor [Build_formals (Build_vardec s_n true) Env.s_int] None]
+                    E[IfExp (OpExp (VarExp (SimpleVar s_n)) EqOp (IntExp 0))
+                            (IntExp 1)
+                            (Some (OpExp (VarExp (SimpleVar s_n)) TimesOp
+                                         (AppExp s_nfactor E[OpExp (VarExp (SimpleVar s_n)) MinusOp
+                                                                   (IntExp 1)])))]]
+      (SeqExp E[AppExp s_nfactor E[IntExp 10]]).
 End EX21.
 
 Module EX22 <: EX.
-(*
-/* error : field not in record type */
+  (* Error *)
+  (* let
+       type rectype = {name : string, id : int}
+       var rec1 := rectype {name="Name", id=0}
+     in
+       rec1.nam := "asd"
+     end *)
+  Definition s_nam := sy 20.
+  Definition s_rec1 := sy 21.
+  Definition s_id := sy 22.
+  Definition s_name := sy 23.
+  Definition s_rectype := sy 24.
 
-let
-	type rectype = {name:string , id:int}
-	var rec1 := rectype {name="Name", id=0}
-in
-	rec1.nam := "asd"
-end
-*)
-Definition s_nam := sy 20.
-Definition s_rec1 := sy 21.
-Definition s_id := sy 22.
-Definition s_name := sy 23.
-Definition s_rectype := sy 24.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_rec1 true) (None) (RecordExp E[StringExp "Name";
-IntExp 0]
-[s_name;
-s_id]
-s_rectype)]
-(SeqExp E[AssignExp (FieldVar (SimpleVar s_rec1) s_nam) (StringExp "asd")]).
+  Definition ex : exp :=
+  LetExp
+    D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                Build_tfield s_id Env.s_int])];
+      VarDec (Build_vardec s_rec1 true) None (RecordExp E[StringExp "Name";
+                                                          IntExp 0]
+                                                        [s_name; s_id]
+                                                        s_rectype)]
+    (SeqExp E[AssignExp (FieldVar (SimpleVar s_rec1) s_nam) (StringExp "asd")]).
 End EX22.
 
 Module EX23 <: EX.
-(*
-/* error : type mismatch */
+  (* Error *)
+  (* let
+       type rectype = {name : string, id : int}
+       var rec1 := rectype {name="aname", id=0}
+     in
+       rec1.name := 3
+       rec1.id := ""
+     end *)
+  Definition s_rec1 := sy 20.
+  Definition s_id := sy 21.
+  Definition s_name := sy 22.
+  Definition s_rectype := sy 23.
 
-let
-	type rectype = {name:string , id:int}
-	var rec1 := rectype {name="aname", id=0}
-in
-	rec1.name := 3
-	rec1.id := ""
-end
-*)
-Definition s_rec1 := sy 20.
-Definition s_id := sy 21.
-Definition s_name := sy 22.
-Definition s_rectype := sy 23.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_rec1 true) (None) (RecordExp E[StringExp "aname";
-IntExp 0]
-[s_name;
-s_id]
-s_rectype)]
-(SeqExp E[AssignExp (FieldVar (SimpleVar s_rec1) s_name) (IntExp 3);
-AssignExp (FieldVar (SimpleVar s_rec1) s_id) (StringExp "")]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_rec1 true) None (RecordExp E[StringExp "aname";
+                                                            IntExp 0]
+                                                          [s_name; s_id]
+                                                          s_rectype)]
+      (SeqExp E[AssignExp (FieldVar (SimpleVar s_rec1) s_name) (IntExp 3);
+                AssignExp (FieldVar (SimpleVar s_rec1) s_id) (StringExp "")]).
 End EX23.
 
 Module EX24 <: EX.
-(*
-/* error : variable not array */
-let
-	var d:=0
-in
-	d[3]
-end
+  (* Error *)
+  (* let
+       var d := 0
+     in
+       d[3]
+     end *)
+  Definition s_d := sy 20.
 
-*)
-Definition s_d := sy 20.
-
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_d true) (None) (IntExp 0)]
-(SeqExp E[VarExp (SubscriptVar (SimpleVar s_d) (IntExp 3))]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_d true) None (IntExp 0)]
+      (SeqExp E[VarExp (SubscriptVar (SimpleVar s_d) (IntExp 3))]).
 End EX24.
 
 Module EX25 <: EX.
-(*
-/* error : variable not record */
-let
-	var d:=0
-in
-	d.f
-end
+  (* Error *)
+  (* let
+       var d := 0
+     in
+       d.f
+     end *)
+  Definition s_f := sy 20.
+  Definition s_d := sy 21.
 
-*)
-Definition s_f := sy 20.
-Definition s_d := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_d true) (None) (IntExp 0)]
-(SeqExp E[VarExp (FieldVar (SimpleVar s_d) s_f)]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_d true) None (IntExp 0)]
+      (SeqExp E[VarExp (FieldVar (SimpleVar s_d) s_f)]).
 End EX25.
 
 Module EX26 <: EX.
-(*
-/* error : integer required */
-
-3 + "var"
-*)
-Definition ex : exp :=
-OpExp (IntExp 3) PlusOp (StringExp "var").
+  (* Error *)
+  (* 3 + "var" *)
+  Definition ex : exp :=
+    OpExp (IntExp 3) PlusOp (StringExp "var").
 End EX26.
 
 Module EX27 <: EX.
-(*
-/* locals hide globals */
-let
-	var a:=0
+(* let
+     var a := 0
+     function g(a : int) : int = a
+   in
+     g(2)
+   end *)
+  Definition s_g := sy 20.
+  Definition s_a := sy 21.
 
-	function g(a:int):int = a
-in
- g(2)
-end
-*)
-Definition s_g := sy 20.
-Definition s_a := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_a true) (None) (IntExp 0);
-FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
-(Some Env.s_int)]
-E[VarExp (SimpleVar s_a)]]
-(SeqExp E[AppExp s_g E[IntExp 2]]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_a true) None (IntExp 0);
+        FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
+                                      (Some Env.s_int)]
+                    E[VarExp (SimpleVar s_a)]]
+      (SeqExp E[AppExp s_g E[IntExp 2]]).
 End EX27.
 
 Module EX28 <: EX.
-(*
-/* error : different record types */
+  (* Error *)
+  (* let
+       type rectype1 = {name : string, id : int}
+       type rectype2 = {name : string, id : int}
+       var rec1 : rectype1 := rectype2 {name="Name", id=0}
+     in
+       rec1
+     end *)
+  Definition s_rec1 := sy 20.
+  Definition s_rectype2 := sy 21.
+  Definition s_id := sy 22.
+  Definition s_name := sy 23.
+  Definition s_rectype1 := sy 24.
 
-let
-	type rectype1 = {name:string , id:int}
-	type rectype2 = {name:string , id:int}
-
-	var rec1: rectype1 := rectype2 {name="Name", id=0}
-in
-	rec1
-end
-*)
-Definition s_rec1 := sy 20.
-Definition s_rectype2 := sy 21.
-Definition s_id := sy 22.
-Definition s_name := sy 23.
-Definition s_rectype1 := sy 24.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype1 (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int]);
-Build_tydec s_rectype2 (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_rec1 true) (Some s_rectype1) (RecordExp E[StringExp "Name";
-IntExp 0]
-[s_name;
-s_id]
-s_rectype2)]
-(SeqExp E[VarExp (SimpleVar s_rec1)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_rectype1 (RecordTy [Build_tfield s_name Env.s_string;
+                                                   Build_tfield s_id Env.s_int]);
+                 Build_tydec s_rectype2 (RecordTy [Build_tfield s_name Env.s_string;
+                                                   Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_rec1 true) (Some s_rectype1) (RecordExp E[StringExp "Name";
+                                                                         IntExp 0]
+                                                                       [s_name; s_id]
+                                                                       s_rectype2)]
+      (SeqExp E[VarExp (SimpleVar s_rec1)]).
 End EX28.
 
 Module EX29 <: EX.
-(*
-/* error : different array types */
+  (* Error *)
+  (* let
+       type arrtype1 = array of int
+       type arrtype2 = array of int
+       var arr1 : arrtype1 := arrtype2 [10] of 0
+     in
+       arr1
+     end *)
+  Definition s_arr1 := sy 20.
+  Definition s_arrtype2 := sy 21.
+  Definition s_arrtype1 := sy 22.
 
-let
-	type arrtype1 = array of int
-	type arrtype2 = array of int
-
-	var arr1: arrtype1 := arrtype2 [10] of 0
-in
-	arr1
-end
-*)
-Definition s_arr1 := sy 20.
-Definition s_arrtype2 := sy 21.
-Definition s_arrtype1 := sy 22.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_arrtype1 (ArrayTy Env.s_int);
-Build_tydec s_arrtype2 (ArrayTy Env.s_int)];
-VarDec (Build_vardec s_arr1 true) (Some s_arrtype1) (ArrayExp s_arrtype2
-(IntExp 10)
-(IntExp 0))]
-(SeqExp E[VarExp (SimpleVar s_arr1)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_arrtype1 (ArrayTy Env.s_int);
+                 Build_tydec s_arrtype2 (ArrayTy Env.s_int)];
+        VarDec (Build_vardec s_arr1 true) (Some s_arrtype1) (ArrayExp s_arrtype2
+                                                                      (IntExp 10)
+                                                                      (IntExp 0))]
+      (SeqExp E[VarExp (SimpleVar s_arr1)]).
 End EX29.
 
 Module EX30 <: EX.
-(*
-/* synonyms are fine */
+  (* let
+       type a = array of int
+       type b = a
+       var arr1 : a := b [10] of 0
+     in
+       arr1[2]
+     end *)
+  Definition s_arr1 := sy 20.
+  Definition s_b := sy 21.
+  Definition s_a := sy 22.
 
-let
-		type a = array of int
-		type b = a
-
-		var arr1:a := b [10] of 0
-in
-		arr1[2]
-end
-*)
-Definition s_arr1 := sy 20.
-Definition s_b := sy 21.
-Definition s_a := sy 22.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_a (ArrayTy Env.s_int);
-Build_tydec s_b (NameTy s_a)];
-VarDec (Build_vardec s_arr1 true) (Some s_a) (ArrayExp s_b
-(IntExp 10)
-(IntExp 0))]
-(SeqExp E[VarExp (SubscriptVar (SimpleVar s_arr1) (IntExp 2))]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_a (ArrayTy Env.s_int);
+                 Build_tydec s_b (NameTy s_a)];
+        VarDec (Build_vardec s_arr1 true) (Some s_a) (ArrayExp s_b
+                                                               (IntExp 10)
+                                                               (IntExp 0))]
+      (SeqExp E[VarExp (SubscriptVar (SimpleVar s_arr1) (IntExp 2))]).
 End EX30.
 
 Module EX31 <: EX.
-(*
-/* error : type constraint and init value differ */
-let
-	var a:int := " "
-in
-	a
-end
-*)
-Definition s_a := sy 20.
+  (* Error *)
+  (* let
+       var a : int := " "
+     in
+       a
+     end *)
+  Definition s_a := sy 20.
 
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_a true) (Some Env.s_int) (StringExp " ")]
-(SeqExp E[VarExp (SimpleVar s_a)]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_a true) (Some Env.s_int) (StringExp " ")]
+      (SeqExp E[VarExp (SimpleVar s_a)]).
 End EX31.
 
 Module EX32 <: EX.
-(*
-/* error : initializing exp and array type differ */
+  (* Error *)
+  (* let
+       type arrayty = array of int
+       var a := arrayty [10] of " "
+     in
+       0
+     end *)
+  Definition s_a := sy 20.
+  Definition s_arrayty := sy 21.
 
-let
-	type arrayty = array of int
-
-	var a := arrayty [10] of " "
-in
-	0
-end
-*)
-Definition s_a := sy 20.
-Definition s_arrayty := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_arrayty (ArrayTy Env.s_int)];
-VarDec (Build_vardec s_a true) (None) (ArrayExp s_arrayty
-(IntExp 10)
-(StringExp " "))]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_arrayty (ArrayTy Env.s_int)];
+        VarDec (Build_vardec s_a true) None (ArrayExp s_arrayty
+                                                      (IntExp 10)
+                                                      (StringExp " "))]
+      (SeqExp E[IntExp 0]).
 End EX32.
 
 Module EX33 <: EX.
-(*
-/* error : unknown type */
-let
-	var a:= rectype {}
-in
-	0
-end
-*)
-Definition s_rectype := sy 20.
-Definition s_a := sy 21.
+  (* Error *)
+  (* let
+       var a := rectype {}
+     in
+       0
+     end *)
+  Definition s_rectype := sy 20.
+  Definition s_a := sy 21.
 
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_a true) (None) (RecordExp E[]
-[]
-s_rectype)]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_a true) None (RecordExp E[] [] s_rectype)]
+      (SeqExp E[IntExp 0]).
 End EX33.
 
 Module EX34 <: EX.
-(*
-/* error : formals and actuals have different types */
-let
-	function g (a:int , b:string):int = a
-in
-	g("one", "two")
-end
-*)
-Definition s_b := sy 20.
-Definition s_a := sy 21.
-Definition s_g := sy 22.
+  (* Error *)
+  (* let
+       function g (a : int, b : string) : int = a
+     in
+       g("one", "two")
+     end *)
+  Definition s_b := sy 20.
+  Definition s_a := sy 21.
+  Definition s_g := sy 22.
 
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
-Build_formals (Build_vardec s_b true) Env.s_string]
-(Some Env.s_int)]
-E[VarExp (SimpleVar s_a)]]
-(SeqExp E[AppExp s_g E[StringExp "one";
-StringExp "two"]]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
+                                       Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int)]
+                    E[VarExp (SimpleVar s_a)]]
+      (SeqExp E[AppExp s_g E[StringExp "one"; StringExp "two"]]).
 End EX34.
 
 Module EX35 <: EX.
-(*
-/* error : formals are more then actuals */
-let
-	function g (a:int , b:string):int = a
-in
-	g("one")
-end
-*)
-Definition s_b := sy 20.
-Definition s_a := sy 21.
-Definition s_g := sy 22.
+  (* Error *)
+  (* let
+       function g (a : int, b : string) : int = a
+     in
+       g("one")
+     end *)
+  Definition s_b := sy 20.
+  Definition s_a := sy 21.
+  Definition s_g := sy 22.
 
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
-Build_formals (Build_vardec s_b true) Env.s_string]
-(Some Env.s_int)]
-E[VarExp (SimpleVar s_a)]]
-(SeqExp E[AppExp s_g E[StringExp "one"]]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
+                                       Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int)]
+                    E[VarExp (SimpleVar s_a)]]
+      (SeqExp E[AppExp s_g E[StringExp "one"]]).
 End EX35.
 
 Module EX36 <: EX.
-(*
-/* error : formals are fewer then actuals */
-let
-	function g (a:int , b:string):int = a
-in
-	g(3,"one",5)
-end
-*)
-Definition s_b := sy 20.
-Definition s_a := sy 21.
-Definition s_g := sy 22.
+  (* Error *)
+  (* let
+       function g (a : int, b : string) : int = a
+     in
+       g(3, "one", 5)
+     end *)
+  Definition s_b := sy 20.
+  Definition s_a := sy 21.
+  Definition s_g := sy 22.
 
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
-Build_formals (Build_vardec s_b true) Env.s_string]
-(Some Env.s_int)]
-E[VarExp (SimpleVar s_a)]]
-(SeqExp E[AppExp s_g E[IntExp 3;
-StringExp "one";
-IntExp 5]]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int;
+                                       Build_formals (Build_vardec s_b true) Env.s_string]
+                                  (Some Env.s_int)]
+                    E[VarExp (SimpleVar s_a)]]
+      (SeqExp E[AppExp s_g E[IntExp 3; StringExp "one"; IntExp 5]]).
 End EX36.
 
 Module EX37 <: EX.
-(*
-/* redeclaration of variable, not an error */
-let
-	var a := 0
-	var a := " "
-in
-	0
-end
-*)
-Definition s_a := sy 20.
+  (* let
+       var a := 0
+       var a := " "
+     in
+       0
+     end *)
+  Definition s_a := sy 20.
 
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_a true) (None) (IntExp 0);
-VarDec (Build_vardec s_a true) (None) (StringExp " ")]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_a true) None (IntExp 0);
+        VarDec (Build_vardec s_a true) None (StringExp " ")]
+      (SeqExp E[IntExp 0]).
 End EX37.
 
 Module EX38 <: EX.
-(*
-/* redeclaration of type error */
-let
-	type a = int
-	type a = string
-in
-	0
-end
-*)
-Definition s_a := sy 20.
+  (* Error *)
+  (* let
+       type a = int
+       type a = string
+     in
+       0
+     end *)
+  Definition s_a := sy 20.
 
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_a (NameTy Env.s_int);
-Build_tydec s_a (NameTy Env.s_string)]]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_a (NameTy Env.s_int);
+                 Build_tydec s_a (NameTy Env.s_string)]]
+      (SeqExp E[IntExp 0]).
 End EX38.
 
 Module EX39 <: EX.
-(*
-/* redeclaration of function error */
-let
-	function g(a:int):int = a
-	function g(a:int):int = a
-in
-	0
-end
-*)
-Definition s_a := sy 20.
-Definition s_g := sy 21.
+  (* Error *)
+  (* let
+       function g(a : int) : int = a
+       function g(a : int) : int = a
+     in
+       0
+     end *)
+  Definition s_a := sy 20.
+  Definition s_g := sy 21.
 
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
-(Some Env.s_int);
-Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
-(Some Env.s_int)]
-E[VarExp (SimpleVar s_a);
-VarExp (SimpleVar s_a)]]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
+                                  (Some Env.s_int);
+                     Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
+                                  (Some Env.s_int)]
+                    E[VarExp (SimpleVar s_a); VarExp (SimpleVar s_a)]]
+      (SeqExp E[IntExp 0]).
 End EX39.
 
 Module EX40 <: EX.
-(*
-/* error : procedure returns value */
-let
-	function g(a:int) = a
-in
-	g(2)
-end
+  (* Error *)
+  (* let
+       function g(a : int) = a
+     in
+       g(2)
+     end *)
+  Definition s_a := sy 20.
+  Definition s_g := sy 21.
 
-*)
-Definition s_a := sy 20.
-Definition s_g := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
-(None)]
-E[VarExp (SimpleVar s_a)]]
-(SeqExp E[AppExp s_g E[IntExp 2]]).
+  Definition ex : exp :=
+    LetExp
+      D[FunctionDec [Build_fundec s_g [Build_formals (Build_vardec s_a true) Env.s_int]
+                                  None]
+                    E[VarExp (SimpleVar s_a)]]
+      (SeqExp E[AppExp s_g E[IntExp 2]]).
 End EX40.
 
 Module EX41 <: EX.
-(*
-/* local types hide global */
-let
-	type a = int
-in
-	let
-		type a = string
-	in
-		0
-	end
-end
-*)
-Definition s_a := sy 20.
+  (* let
+       type a = int
+     in
+       let
+         type a = string
+       in
+         0
+       end
+     end *)
+  Definition s_a := sy 20.
 
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_a (NameTy Env.s_int)]]
-(SeqExp E[LetExp
-D[TypeDec [Build_tydec s_a (NameTy Env.s_string)]]
-(SeqExp E[IntExp 0])]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_a (NameTy Env.s_int)]]
+      (SeqExp 
+        E[LetExp
+          D[TypeDec [Build_tydec s_a (NameTy Env.s_string)]]
+          (SeqExp E[IntExp 0])]).
 End EX41.
 
 Module EX42 <: EX.
-(*
-/* correct declarations but with a syntax error */
-let
+  (* let
+       type arrtype1 = array of int
+       type rectype1 = {name : string, address : string, id: int, age: int}
+       type arrtype2 = array of rectype1
+       type rectype2 = {name : string, dates: arrtype1}
+       type arrtype3 = array of string
+       var arr1 := arrtype1 [10] of 0
+       var arr2 := arrtype2 [5] of rectype1 {name="aname", address="somewhere", id=0, age=0}}
+       var arr3 : arrtype3 := arrtype3 [100] of ""
+       var rec1 := rectype1 {name="Kapoios", address="Kapou", id=02432, age=44}
+       var rec2 := rectype2 {name="Allos", dates= arrtype1 [3] of 1900}
+     in
+       arr1[0] := 1;
+       arr1[9] := 3;
+       arr2[3].name := "kati";
+       arr2[1].age := 23;
+       arr3[34] := "sfd";
+       rec1.name := "sdf";
+       rec2.dates[0] := 2323;
+       rec2.dates[2] := 2323
+     end *)
+  Definition s_rec2 := sy 20.
+  Definition s_rec1 := sy 21.
+  Definition s_arr3 := sy 22.
+  Definition s_arr2 := sy 23.
+  Definition s_arr1 := sy 24.
+  Definition s_arrtype3 := sy 25.
+  Definition s_dates := sy 26.
+  Definition s_rectype2 := sy 27.
+  Definition s_arrtype2 := sy 28.
+  Definition s_age := sy 29.
+  Definition s_id := sy 30.
+  Definition s_address := sy 31.
+  Definition s_name := sy 32.
+  Definition s_rectype1 := sy 33.
+  Definition s_arrtype1 := sy 34.
 
-type arrtype1 = array of int
-type rectype1 = {name:string, address:string, id: int , age: int}
-type arrtype2 = array of rectype1
-type rectype2 = {name : string, dates: arrtype1}
-
-type arrtype3 = array of string
-
-var arr1 := arrtype1 [10] of 0
-var arr2  := arrtype2 [5] of rectype1 {name="aname", address="somewhere", id=0, age=0}}
-var arr3:arrtype3 := arrtype3 [100] of ""
-
-var rec1 := rectype1 {name="Kapoios", address="Kapou", id=02432, age=44}
-var rec2 := rectype2 {name="Allos", dates= arrtype1 [3] of 1900}
-
-in
-
-arr1[0] := 1;
-arr1[9] := 3;
-arr2[3].name := "kati";
-arr2[1].age := 23;
-arr3[34] := "sfd";
-
-rec1.name := "sdf";
-rec2.dates[0] := 2323;
-rec2.dates[2] := 2323
-
-end
-*)
-Definition s_rec2 := sy 20.
-Definition s_rec1 := sy 21.
-Definition s_arr3 := sy 22.
-Definition s_arr2 := sy 23.
-Definition s_arr1 := sy 24.
-Definition s_arrtype3 := sy 25.
-Definition s_dates := sy 26.
-Definition s_rectype2 := sy 27.
-Definition s_arrtype2 := sy 28.
-Definition s_age := sy 29.
-Definition s_id := sy 30.
-Definition s_address := sy 31.
-Definition s_name := sy 32.
-Definition s_rectype1 := sy 33.
-Definition s_arrtype1 := sy 34.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_arrtype1 (ArrayTy Env.s_int);
-Build_tydec s_rectype1 (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_address Env.s_string;
-Build_tfield s_id Env.s_int;
-Build_tfield s_age Env.s_int]);
-Build_tydec s_arrtype2 (ArrayTy s_rectype1);
-Build_tydec s_rectype2 (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_dates s_arrtype1]);
-Build_tydec s_arrtype3 (ArrayTy Env.s_string)];
-VarDec (Build_vardec s_arr1 true) (None) (ArrayExp s_arrtype1
-(IntExp 10)
-(IntExp 0));
-VarDec (Build_vardec s_arr2 true) (None) (ArrayExp s_arrtype2
-(IntExp 5)
-(RecordExp E[StringExp "aname";
-StringExp "somewhere";
-IntExp 0;
-IntExp 0]
-[s_name;
-s_address;
-s_id;
-s_age]
-s_rectype1));
-VarDec (Build_vardec s_arr3 true) (Some s_arrtype3) (ArrayExp s_arrtype3
-(IntExp 100)
-(StringExp ""));
-VarDec (Build_vardec s_rec1 true) (None) (RecordExp E[StringExp "Kapoios";
-StringExp "Kapou";
-IntExp 2432;
-IntExp 44]
-[s_name;
-s_address;
-s_id;
-s_age]
-s_rectype1);
-VarDec (Build_vardec s_rec2 true) (None) (RecordExp E[StringExp "Allos";
-ArrayExp s_arrtype1
-(IntExp 3)
-(IntExp 1900)]
-[s_name;
-s_dates]
-s_rectype2)]
-(SeqExp E[AssignExp (SubscriptVar (SimpleVar s_arr1) (IntExp 0)) (IntExp 1);
-AssignExp (SubscriptVar (SimpleVar s_arr1) (IntExp 9)) (IntExp 3);
-AssignExp (FieldVar (SubscriptVar (SimpleVar s_arr2) (IntExp 3)) s_name) (StringExp "kati");
-AssignExp (FieldVar (SubscriptVar (SimpleVar s_arr2) (IntExp 1)) s_age) (IntExp 23);
-AssignExp (SubscriptVar (SimpleVar s_arr3) (IntExp 34)) (StringExp "sfd");
-AssignExp (FieldVar (SimpleVar s_rec1) s_name) (StringExp "sdf");
-AssignExp (SubscriptVar (FieldVar (SimpleVar s_rec2) s_dates) (IntExp 0)) (IntExp 2323);
-AssignExp (SubscriptVar (FieldVar (SimpleVar s_rec2) s_dates) (IntExp 2)) (IntExp 2323)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_arrtype1 (ArrayTy Env.s_int);
+                 Build_tydec s_rectype1 (RecordTy [Build_tfield s_name Env.s_string;
+                                                   Build_tfield s_address Env.s_string;
+                                                   Build_tfield s_id Env.s_int;
+                                                   Build_tfield s_age Env.s_int]);
+                 Build_tydec s_arrtype2 (ArrayTy s_rectype1);
+                 Build_tydec s_rectype2 (RecordTy [Build_tfield s_name Env.s_string;
+                                                   Build_tfield s_dates s_arrtype1]);
+                 Build_tydec s_arrtype3 (ArrayTy Env.s_string)];
+        VarDec (Build_vardec s_arr1 true) None (ArrayExp s_arrtype1
+                                                         (IntExp 10)
+                                                         (IntExp 0));
+        VarDec (Build_vardec s_arr2 true) None (ArrayExp s_arrtype2
+                                                         (IntExp 5)
+                                                         (RecordExp E[StringExp "aname";
+                                                                      StringExp "somewhere";
+                                                                      IntExp 0;
+                                                                      IntExp 0]
+                                                                    [s_name;
+                                                                     s_address;
+                                                                     s_id;
+                                                                     s_age]
+                                                                    s_rectype1));
+        VarDec (Build_vardec s_arr3 true) (Some s_arrtype3) (ArrayExp s_arrtype3
+                                                                      (IntExp 100)
+                                                                      (StringExp ""));
+        VarDec (Build_vardec s_rec1 true) None (RecordExp E[StringExp "Kapoios";
+                                                            StringExp "Kapou";
+                                                            IntExp 2432;
+                                                            IntExp 44]
+                                                          [s_name;
+                                                           s_address;
+                                                           s_id;
+                                                           s_age]
+                                                          s_rectype1);
+        VarDec (Build_vardec s_rec2 true) None (RecordExp E[StringExp "Allos";
+                                                            ArrayExp s_arrtype1
+                                                                     (IntExp 3)
+                                                                     (IntExp 1900)]
+                                                          [s_name;
+                                                           s_dates]
+                                                          s_rectype2)]
+      (SeqExp E[AssignExp (SubscriptVar (SimpleVar s_arr1) (IntExp 0)) (IntExp 1);
+                AssignExp (SubscriptVar (SimpleVar s_arr1) (IntExp 9)) (IntExp 3);
+                AssignExp (FieldVar (SubscriptVar (SimpleVar s_arr2) (IntExp 3)) s_name) (StringExp "kati");
+                AssignExp (FieldVar (SubscriptVar (SimpleVar s_arr2) (IntExp 1)) s_age) (IntExp 23);
+                AssignExp (SubscriptVar (SimpleVar s_arr3) (IntExp 34)) (StringExp "sfd");
+                AssignExp (FieldVar (SimpleVar s_rec1) s_name) (StringExp "sdf");
+                AssignExp (SubscriptVar (FieldVar (SimpleVar s_rec2) s_dates) (IntExp 0)) (IntExp 2323);
+                AssignExp (SubscriptVar (FieldVar (SimpleVar s_rec2) s_dates) (IntExp 2)) (IntExp 2323)]).
 End EX42.
 
 Module EX43 <: EX.
-(*
-/* initialize with unit and causing type mismatch in addition */
+  (* Error *)
+  (* let
+       var a := ()
+     in
+       a + 3
+     end *)
+  Definition s_a := sy 20.
 
-let
-	var a := ()
-in
-	a + 3
-end
-*)
-Definition s_a := sy 20.
-
-Definition ex : exp :=
-LetExp
-D[VarDec (Build_vardec s_a true) (None) (SeqExp E[])]
-(SeqExp E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 3)]).
+  Definition ex : exp :=
+    LetExp
+      D[VarDec (Build_vardec s_a true) None (SeqExp E[])]
+      (SeqExp E[OpExp (VarExp (SimpleVar s_a)) PlusOp (IntExp 3)]).
 End EX43.
 
 Module EX44 <: EX.
-(*
-/* valid nil initialization and assignment */
-let
+  (* let
+       type rectype = {name : string, id : int}
+       var b : rectype := nil
+     in
+       b := nil
+     end *)
+  Definition s_b := sy 20.
+  Definition s_id := sy 21.
+  Definition s_name := sy 22.
+  Definition s_rectype := sy 23.
 
-	type rectype = {name:string, id:int}
-	var b:rectype := nil
-
-in
-
-	b := nil
-
-end
-*)
-Definition s_b := sy 20.
-Definition s_id := sy 21.
-Definition s_name := sy 22.
-Definition s_rectype := sy 23.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_b true) (Some s_rectype) (NilExp)]
-(SeqExp E[AssignExp (SimpleVar s_b) (NilExp)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_b true) (Some s_rectype) (NilExp)]
+      (SeqExp E[AssignExp (SimpleVar s_b) (NilExp)]).
 End EX44.
 
 Module EX45 <: EX.
-(*
-/* error: initializing nil expressions not constrained by record type + syntax error */
-let
-	type rectype = {name:string, id:int}
+  (* Error *)
+  (* let
+       type rectype = {name : string, id : int}
+       var a := rectype nil
+       var a := nil
+     in
+       a
+     end *)
+  Definition s_a := sy 20.
+  Definition s_id := sy 21.
+  Definition s_name := sy 22.
+  Definition s_rectype := sy 23.
 
-	var a:= rectype nil
-	var a:= nil
-in
-	a
-end
-*)
-Definition s_a := sy 20.
-Definition s_id := sy 21.
-Definition s_name := sy 22.
-Definition s_rectype := sy 23.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_a true) (None) (OpExp (VarExp (SimpleVar s_rectype)) PlusOp (NilExp));
-VarDec (Build_vardec s_a true) (None) (NilExp)]
-(SeqExp E[VarExp (SimpleVar s_a)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_a true) None (OpExp (VarExp (SimpleVar s_rectype)) PlusOp (NilExp));
+        VarDec (Build_vardec s_a true) None (NilExp)]
+      (SeqExp E[VarExp (SimpleVar s_a)]).
 End EX45.
 
 Module EX46 <: EX.
-(*
-/* validity of rec comparisons */
-let
-	type rectype = {name:string, id:int}
-	var b:rectype := nil
-in
-	nil=nil;   /* this line should be rejected by your typechecker */
-	b= nil;
-	b <> nil
-end
-*)
-Definition s_b := sy 20.
-Definition s_id := sy 21.
-Definition s_name := sy 22.
-Definition s_rectype := sy 23.
+  (* Error *)
+  (* let
+       type rectype = {name : string, id : int}
+       var b : rectype := nil
+     in
+       nil = nil;
+       b = nil;
+       b <> nil
+     end *)
+  Definition s_b := sy 20.
+  Definition s_id := sy 21.
+  Definition s_name := sy 22.
+  Definition s_rectype := sy 23.
 
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
-Build_tfield s_id Env.s_int])];
-VarDec (Build_vardec s_b true) (Some s_rectype) (NilExp)]
-(SeqExp E[OpExp (NilExp) EqOp (NilExp);
-OpExp (VarExp (SimpleVar s_b)) EqOp (NilExp);
-OpExp (VarExp (SimpleVar s_b)) NeqOp (NilExp)]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_rectype (RecordTy [Build_tfield s_name Env.s_string;
+                                                  Build_tfield s_id Env.s_int])];
+        VarDec (Build_vardec s_b true) (Some s_rectype) (NilExp)]
+      (SeqExp E[OpExp (NilExp) EqOp (NilExp);
+                OpExp (VarExp (SimpleVar s_b)) EqOp (NilExp);
+                OpExp (VarExp (SimpleVar s_b)) NeqOp (NilExp)]).
 End EX46.
 
 Module EX47 <: EX.
-(*
-/* error : invalid recursion  */
-let
-	type a = int
+  (* Error *)
+  (* let
+       type a = int
+       var d := 0
+       type a = a
+     in
+       0
+     end *)
+  Definition s_d := sy 20.
+  Definition s_a := sy 21.
 
-	var d:=0
-
-	type a = a
-in
-	0
-end
-*)
-Definition s_d := sy 20.
-Definition s_a := sy 21.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_a (NameTy Env.s_int)];
-VarDec (Build_vardec s_d true) (None) (IntExp 0);
-TypeDec [Build_tydec s_a (NameTy s_a)]]
-(SeqExp E[IntExp 0]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_a (NameTy Env.s_int)];
+        VarDec (Build_vardec s_d true) None (IntExp 0);
+        TypeDec [Build_tydec s_a (NameTy s_a)]]
+      (SeqExp E[IntExp 0]).
 End EX47.
 
 Module EX48 <: EX.
-(*
-/* valid let with unit body */
-let
-in
-end
-*)
+  (* let
+     in
+     end *)
+
 Definition ex : exp :=
-LetExp
-D[]
-(SeqExp E[]).
+  LetExp
+    D[]
+    (SeqExp E[]).
 End EX48.
 
 Module EX49 <: EX.
-(*
-/* valid type decs */
+  (* let
+       type i = int
+       var t := 0
+       type a = b
+       type b = c
+       type c = i
+     in
+     end *)
+  Definition s_c := sy 20.
+  Definition s_b := sy 21.
+  Definition s_a := sy 22.
+  Definition s_t := sy 23.
+  Definition s_i := sy 24.
 
-let
-	type i =int
-
-	var t:=0
-
-	type a = b
-	type b = c
-	type c = i
-
-in
-end
-*)
-Definition s_c := sy 20.
-Definition s_b := sy 21.
-Definition s_a := sy 22.
-Definition s_t := sy 23.
-Definition s_i := sy 24.
-
-Definition ex : exp :=
-LetExp
-D[TypeDec [Build_tydec s_i (NameTy Env.s_int)];
-VarDec (Build_vardec s_t true) (None) (IntExp 0);
-TypeDec [Build_tydec s_a (NameTy s_b);
-Build_tydec s_b (NameTy s_c);
-Build_tydec s_c (NameTy s_i)]]
-(SeqExp E[]).
+  Definition ex : exp :=
+    LetExp
+      D[TypeDec [Build_tydec s_i (NameTy Env.s_int)];
+        VarDec (Build_vardec s_t true) None (IntExp 0);
+        TypeDec [Build_tydec s_a (NameTy s_b);
+                 Build_tydec s_b (NameTy s_c);
+                 Build_tydec s_c (NameTy s_i)]]
+      (SeqExp E[]).
 End EX49.
