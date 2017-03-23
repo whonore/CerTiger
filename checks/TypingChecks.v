@@ -9,15 +9,15 @@
 Require Import Absyn.
 Require Import Errors.
 Require Import Examples.
-Require Import Semant.
 Require Import Types.
+Require Import Typing.
 
 Section TypeDec_CHECKS.
   (* With soundness this also implies wt_prog ex ty us *)
   Definition checkEx (ex : Absyn.exp) :=
-    exists ty us, transProg ex = OK (ty, us).
+    exists ty us, typeProg ex = OK (ty, us).
 
-  (* With soundness this implies that transProg ex = ERR *)
+  (* With soundness this implies that typeProg ex = ERR *)
   Definition failEx (ex : Absyn.exp) := forall ty us,
     ~(wt_prog ex ty us).
 
@@ -61,7 +61,7 @@ Section TypeDec_CHECKS.
 
   Ltac solve :=
     match goal with
-    | [ |- checkEx ?E ] => unfold checkEx, E, transProg; simpl; eauto
+    | [ |- checkEx ?E ] => unfold checkEx, E, typeProg; simpl; eauto
     | [ |- failEx ?E ] => unfold failEx, E, not; intros; repeat (repeat inv_all; try solve_actual)
     end.
 

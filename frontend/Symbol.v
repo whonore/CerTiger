@@ -9,6 +9,8 @@ Require Import Arith.
 Require Import DecEqFacts.
 Require Import List.
 
+Require Import Unique.
+
 Module Type SYMBOL.
 
   Parameter t : Set.
@@ -112,3 +114,24 @@ Module Symbol <: SYMBOL.
   End TABLE.
 
 End Symbol.
+
+Module SymUnique <: UNIQUE.
+
+  Definition t := Symbol.t.
+
+  Definition init : list t := NatUnique.init.
+  Definition new : list t -> (list t * t) := NatUnique.new.
+  Definition eq : forall (u1 u2 : t), {u1 = u2} + {u1 <> u2} := NatUnique.eq.
+
+  Definition is_unique (us : list t) : Prop := NoDup us.
+
+  Lemma init_unique : is_unique init.
+  Proof NatUnique.init_unique.
+
+  Lemma new_spec : forall u us us',
+    is_unique us ->
+    new us = (us', u) ->
+    In u us' /\ is_unique us'.
+  Proof NatUnique.new_spec.
+
+End SymUnique.

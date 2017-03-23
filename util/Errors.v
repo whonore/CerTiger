@@ -131,7 +131,7 @@ Ltac monadInv H :=
       ((progress simpl in H) || unfold F in H); monadInv1 H
   end.
 
-(* Monad notation similar to Haskell. *)
+(* Monad notation similar to Haskell's. *)
 
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
   (at level 200, X ident, A at level 100, B at level 200).

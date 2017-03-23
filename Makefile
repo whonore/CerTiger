@@ -7,16 +7,22 @@ COQC=coqc $(COQINCLUDES) $(COQOPTS)
 COQDEP=coqdep $(COQINCLUDES)
 
 UTIL=util/Errors.v \
-	 util/DecEqFacts.v
+	 util/DecEqFacts.v \
+	 util/Unique.v
 
 FRONTEND=frontend/Absyn.v \
 		 frontend/Env.v \
+		 frontend/Frame.v \
 		 frontend/Semant.v \
 		 frontend/Symbol.v \
-		 frontend/Types.v
+		 frontend/Temp.v \
+		 frontend/Translate.v \
+		 frontend/Tree.v \
+		 frontend/Types.v \
+		 frontend/Typing.v
 
 CHECKS=checks/Examples.v \
-	   checks/SemantChecks.v
+	   checks/TypingChecks.v
 
 PROOF=$(FRONTEND) $(UTIL)
 FILES=$(FRONTEND) $(UTIL) $(CHECKS)

@@ -8,11 +8,15 @@
 Require Import List.
 
 Require Import Symbol.
+Require Import Temp.
 Require Import Types.
+Require Import Translate.
 
 Module Type ENV.
 
-  Parameter access : Type.
+  Parameter access : Set.
+  Parameter level : Set.
+  Parameter label : Set.
   Parameter ty : Set.
 
   Inductive rw : Set :=
@@ -20,17 +24,19 @@ Module Type ENV.
     | RW : rw.
 
   Inductive enventry : Set :=
-    | VarEntry : ty -> rw -> enventry
-    | FunEntry : list ty -> ty -> enventry.
+    | VarEntry : ty -> rw -> access -> enventry
+    | FunEntry : list ty -> ty -> level -> label -> enventry.
 
   Parameter base_tenv : @Symbol.table ty.
   Parameter base_venv : @Symbol.table enventry.
 
 End ENV.
 
-Module Env <: ENV.
+Module Env' (T : TRANSLATE) <: ENV.
 
-  Parameter access : Type.
+  Definition access := T.access.
+  Definition level := T.level.
+  Definition label := Temp.label.
   Definition ty := Types.ty.
 
   Inductive rw : Set :=
@@ -38,8 +44,8 @@ Module Env <: ENV.
     | RW : rw.
 
   Inductive enventry : Set :=
-    | VarEntry : ty -> rw -> enventry
-    | FunEntry : list ty -> ty -> enventry.
+    | VarEntry : ty -> rw -> access -> enventry
+    | FunEntry : list ty -> ty -> level -> label -> enventry.
 
   (* Define the built-in names. It's ok to reuse symbols between types and vars
      since they'll be in different tables. *)
@@ -67,20 +73,25 @@ Module Env <: ENV.
   Definition enter {A : Set} stbl entry (tbl : @Symbol.table A) :=
     Symbol.enter tbl (Symbol.symbol' (fst entry) stbl) (snd entry).
 
-  Definition base_tenv := fold_right (enter tsyms) Symbol.empty
+  Definition base_tenv : @Symbol.table ty := fold_right (enter tsyms) Symbol.empty
     ((s_int, Types.INT) :: (s_string, Types.STRING) :: nil).
 
-  Definition base_venv := fold_right (enter vsyms) Symbol.empty
-    ((s_print, FunEntry (Types.STRING :: nil) Types.UNIT)
-     :: (s_flush, FunEntry nil Types.UNIT)
-     :: (s_getchar, FunEntry nil Types.STRING)
-     :: (s_ord, FunEntry (Types.STRING :: nil) Types.INT)
-     :: (s_chr, FunEntry (Types.INT :: nil) Types.STRING)
-     :: (s_size, FunEntry (Types.STRING :: nil) Types.INT)
-     :: (s_substring, FunEntry (Types.STRING :: Types.INT :: Types.INT :: nil) Types.STRING)
-     :: (s_concat, FunEntry (Types.STRING :: Types.STRING :: nil) Types.STRING)
-     :: (s_not, FunEntry (Types.INT :: nil) Types.INT)
-     :: (s_exit, FunEntry (Types.INT :: nil) Types.UNIT)
+  Definition mkFentry nm form ret : Symbol.t * enventry :=
+    (nm, FunEntry form ret T.outermost (Temp.namedLabel nm)).
+
+  Definition base_venv : @Symbol.table enventry := fold_right (enter vsyms) Symbol.empty
+    (mkFentry s_print (Types.STRING :: nil) Types.UNIT
+     :: mkFentry s_flush nil Types.UNIT
+     :: mkFentry s_getchar nil Types.STRING
+     :: mkFentry s_ord (Types.STRING :: nil) Types.INT
+     :: mkFentry s_chr (Types.INT :: nil) Types.STRING
+     :: mkFentry s_size (Types.STRING :: nil) Types.INT
+     :: mkFentry s_substring (Types.STRING :: Types.INT :: Types.INT :: nil) Types.STRING
+     :: mkFentry s_concat (Types.STRING :: Types.STRING :: nil) Types.STRING
+     :: mkFentry s_not (Types.INT :: nil) Types.INT
+     :: mkFentry s_exit (Types.INT :: nil) Types.UNIT
      :: nil).
 
-End Env.
+End Env'.
+
+Module Env := Env' Translate.
